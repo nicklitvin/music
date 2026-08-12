@@ -1,0 +1,32 @@
+#!/bin/sh
+# Runs build + tests for whichever service(s) have staged changes, and
+# blocks the commit if anything fails. Enabled via:
+#   git config core.hooksPath .githooks
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+FRONTEND_CHANGED=$(git diff --cached --name-only -- frontend | grep -v '^frontend/node_modules/' | grep -v '^frontend/dist/' || true)
+BACKEND_CHANGED=$(git diff --cached --name-only -- backend | grep -v '^backend/\.venv/' || true)
+
+if [ -n "$FRONTEND_CHANGED" ]; then
+  echo "pre-commit: frontend test (includes build)"
+  (cd "$REPO_ROOT/frontend" && npm test)
+fi
+
+if [ -n "$BACKEND_CHANGED" ]; then
+  if [ -f "$REPO_ROOT/backend/.venv/Scripts/python.exe" ]; then
+    PYTHON="$REPO_ROOT/backend/.venv/Scripts/python.exe"
+  elif [ -f "$REPO_ROOT/backend/.venv/bin/python" ]; then
+    PYTHON="$REPO_ROOT/backend/.venv/bin/python"
+  else
+    echo "pre-commit: backend/.venv not found -- skipping backend tests."
+    echo "  Set it up with: cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt"
+    PYTHON=""
+  fi
+
+  if [ -n "$PYTHON" ]; then
+    echo "pre-commit: backend pytest"
+    (cd "$REPO_ROOT/backend" && "$PYTHON" -m pytest)
+  fi
+fi

@@ -12,7 +12,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "start": "serve -s dist -l ${PORT:-4173}",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
+    "test:unit": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

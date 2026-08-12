@@ -18,6 +18,15 @@ Each has its own `railway.json`. When creating Railway services, point one
 at this repo with **Root Directory** set to `frontend`, and the other with
 **Root Directory** set to `backend`.
 
+### Pre-commit checks
+
+A hook builds + tests whichever service(s) you've staged changes in, and
+blocks the commit if either fails. Enable it once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
 ## Frontend (`frontend/`)
 
 - React + TypeScript, built with Vite

@@ -7,6 +7,12 @@
   instruction from the user, given explicitly).
 - Frontend and backend are independent projects (`frontend/`, `backend/`);
   keep them decoupled — no shared code, no root-level build tooling.
+- A pre-commit hook (`.githooks/pre-commit`) builds + tests whichever
+  service(s) have staged changes and blocks the commit on failure. It's
+  enabled via `git config core.hooksPath .githooks`, which is per-clone (not
+  itself version-controlled) — run that once after cloning. If it's not set,
+  run the checks manually before committing: `cd frontend && npm test`
+  (build + vitest) and `cd backend && .venv/Scripts/python -m pytest`.
 
 ## Stack
 
