@@ -44,6 +44,12 @@ npm test           # vitest run
 npm run build       # production build to dist/
 ```
 
+The Railway build command is `npm install`, **not** `npm ci`, deliberately:
+Nixpacks mounts its build cache at `/app/node_modules/.cache`, and `npm ci`
+starts by recursively deleting `node_modules`, which fails on that live
+mount point (`EBUSY: resource busy or locked, rmdir '/app/node_modules/.cache'`).
+`npm install` still installs from the committed `package-lock.json`.
+
 Env vars (see `.env.example`): `VITE_API_BASE_URL` — leave unset for local
 dev (Vite proxies to `localhost:8000`); set to the deployed backend's
 Railway URL in production.
