@@ -1,0 +1,47 @@
+.dashboard-header,
+.viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.score-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 0;
+}
+
+.score-card {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.button,
+button {
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.active-notes {
+  font-family: monospace;
+  margin: 12px 0;
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.page img {
+  max-width: 100%;
+  display: block;
+}
