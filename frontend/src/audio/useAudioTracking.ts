@@ -7,7 +7,7 @@ interface UseAudioTrackingOptions {
 }
 
 // Mirrors VITE_API_BASE_URL from api.ts: same-origin (proxied by Vite) in
-// dev, an explicit Railway backend URL in production.
+// dev, an explicit backend URL in production.
 function resolveWsUrl(wsPath: string): string {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
   if (apiBaseUrl) {

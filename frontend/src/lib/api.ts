@@ -2,7 +2,7 @@ import type { ProcessScoreResponse, ScoreRecord } from './types'
 
 // Empty string means "same origin" -- used for local dev, where Vite proxies
 // /api to the backend (see vite.config.ts). In production, set
-// VITE_API_BASE_URL to the deployed backend's Railway URL.
+// VITE_API_BASE_URL to the deployed backend's URL.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 function base64ToBlob(base64: string, contentType = 'image/png'): Blob {

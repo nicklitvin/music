@@ -18,8 +18,6 @@
 
 - Frontend: Vite + React + TypeScript, tested with Vitest + Testing Library.
 - Backend: FastAPI (Python), tested with pytest.
-- Deployment target: Railway, as two separate services (see root README and
-  each folder's `railway.json`).
 
 ## Architecture constraints to preserve
 
