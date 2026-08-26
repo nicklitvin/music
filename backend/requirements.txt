@@ -4,3 +4,4 @@ python-multipart==0.0.20
 pymupdf==1.25.2
 websockets==14.1
 pydantic-settings==2.7.1
+numpy==2.2.1

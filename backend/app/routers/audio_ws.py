@@ -11,11 +11,12 @@ router = APIRouter()
 async def track_audio(websocket: WebSocket) -> None:
     await websocket.accept()
     start_time = time.monotonic()
+    detector = pitch_detection.PitchDetector()
 
     try:
         while True:
             chunk = await websocket.receive_bytes()
-            result = pitch_detection.detect(chunk)
+            result = detector.process(chunk)
 
             # Sent for every chunk, including silence (empty `notes`), so the
             # client can see that audio is actually arriving and inspect the
