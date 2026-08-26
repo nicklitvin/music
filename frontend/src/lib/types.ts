@@ -41,5 +41,6 @@ export interface NoteDetectionEvent {
   type: 'NOTE_DETECTION'
   notes: string[]
   confidence: number
+  rms: number
   timestamp: number
 }

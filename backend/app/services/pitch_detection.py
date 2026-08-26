@@ -20,6 +20,7 @@ SILENCE_RMS_THRESHOLD = 500.0
 class DetectionResult:
     notes: list[str]
     confidence: float
+    rms: float
 
 
 def _rms(pcm16_bytes: bytes) -> float:
@@ -36,7 +37,12 @@ def _rms(pcm16_bytes: bytes) -> float:
 def detect(pcm16_bytes: bytes) -> DetectionResult:
     rms = _rms(pcm16_bytes)
     if rms < SILENCE_RMS_THRESHOLD:
-        return DetectionResult(notes=[], confidence=0.0)
+        return DetectionResult(notes=[], confidence=0.0, rms=round(rms, 1))
 
+    # NOTE: always reports a single fixed pitch -- this placeholder does not
+    # actually analyze frequency content, so every loud chunk (single note,
+    # chord, or noise) comes back as "C4". A real implementation must
+    # estimate frequency (e.g. FFT/autocorrelation) and can return more than
+    # one entry in `notes` for chords/polyphony.
     confidence = min(rms / 10000, 1.0)
-    return DetectionResult(notes=["C4"], confidence=round(confidence, 2))
+    return DetectionResult(notes=["C4"], confidence=round(confidence, 2), rms=round(rms, 1))
