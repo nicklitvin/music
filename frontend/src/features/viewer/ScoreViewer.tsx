@@ -15,6 +15,20 @@ function lineKey(line: Pick<ScoreLine, 'pageIndex' | 'lineIndex'>): string {
   return `${line.pageIndex}-${line.lineIndex}`
 }
 
+function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function slugify(title: string): string {
+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'score'
+}
+
 export function ScoreViewer() {
   const { scoreId } = useParams<{ scoreId: string }>()
   const [score, setScore] = useState<ScoreRecord | null>(null)
@@ -49,7 +63,9 @@ export function ScoreViewer() {
 
   const handleNoteDetection = useCallback((event: NoteDetectionEvent) => {
     setActiveNotes(event.notes)
-    setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+    if (event.notes.length > 0) {
+      setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+    }
 
     const newLine = lineTrackerRef.current?.observe(event.notes)
     if (newLine) {
@@ -70,6 +86,14 @@ export function ScoreViewer() {
     lineTrackerRef.current = new LineTracker(lines)
     start()
   }, [start, lines])
+
+  const handleDownloadLogs = useCallback(() => {
+    downloadJson(`${slugify(score?.title ?? 'score')}-detection-log.json`, logs)
+  }, [logs, score])
+
+  const handleDownloadNotes = useCallback(() => {
+    downloadJson(`${slugify(score?.title ?? 'score')}-notes.json`, score?.boundingBoxes ?? [])
+  }, [score])
 
   if (!score) return <p>Loading score…</p>
 
@@ -145,12 +169,20 @@ export function ScoreViewer() {
 
         {(isTracking || logs.length > 0) && (
           <aside className="tracking-log" aria-label="Backend detection log">
-            <h2>Detection log</h2>
+            <div className="tracking-log-header">
+              <h2>Detection log</h2>
+              <div className="tracking-log-actions">
+                <button onClick={handleDownloadLogs} disabled={logs.length === 0}>
+                  Download log
+                </button>
+                <button onClick={handleDownloadNotes}>Download notes</button>
+              </div>
+            </div>
             <ul>
               {logs.map((entry, i) => (
-                <li key={i} className={entry.notes.length > 0 ? 'has-notes' : ''}>
+                <li key={i}>
                   <span className="log-time">{entry.timestamp.toFixed(3)}s</span>{' '}
-                  <span className="log-notes">{entry.notes.length > 0 ? entry.notes.join(', ') : 'silence'}</span>{' '}
+                  <span className="log-notes">{entry.notes.join(', ')}</span>{' '}
                   <span className="log-meta">
                     conf={entry.confidence.toFixed(2)} rms={entry.rms.toFixed(0)}
                   </span>

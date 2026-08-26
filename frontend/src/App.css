@@ -65,9 +65,27 @@ button {
   overflow-y: auto;
 }
 
+.tracking-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .tracking-log h2 {
   font-size: 14px;
   margin: 4px 0 8px;
+}
+
+.tracking-log-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tracking-log-actions button {
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .tracking-log ul {
@@ -84,11 +102,6 @@ button {
 .tracking-log li {
   padding: 2px 4px;
   border-radius: 4px;
-  color: var(--muted-text, #888);
-}
-
-.tracking-log li.has-notes {
-  color: inherit;
   background: rgba(76, 217, 100, 0.15);
 }
 
