@@ -17,3 +17,7 @@ opencv-python-headless==4.10.0.84
 scikit-learn==1.5.2
 onnxruntime-gpu==1.18.1
 oemer==0.1.8
+
+# Used directly by scripts/annotate_notes.py (oemer pulls it in transitively
+# too, but this script takes a direct dependency on it).
+pillow==12.3.0
