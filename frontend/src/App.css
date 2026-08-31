@@ -6,6 +6,11 @@
   gap: 16px;
 }
 
+.viewer-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .score-grid {
   list-style: none;
   display: grid;

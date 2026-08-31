@@ -14,9 +14,9 @@ function base64ToBlob(base64: string, contentType = 'image/png'): Blob {
   return new Blob([new Uint8Array(byteNumbers)], { type: contentType })
 }
 
-export async function processScore(file: File, scoreId: string): Promise<ScoreRecord> {
+async function callProcessScore(file: Blob, scoreId: string): Promise<ProcessScoreResponse> {
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', file, 'score.pdf')
   formData.append('scoreId', scoreId)
 
   const res = await fetch(`${API_BASE_URL}/api/process-score`, {
@@ -28,12 +28,41 @@ export async function processScore(file: File, scoreId: string): Promise<ScoreRe
     throw new Error(`Score processing failed: ${res.status} ${res.statusText}`)
   }
 
-  const payload: ProcessScoreResponse = await res.json()
+  return res.json()
+}
+
+export async function processScore(file: File, scoreId: string): Promise<ScoreRecord> {
+  const payload = await callProcessScore(file, scoreId)
 
   return {
     id: payload.scoreId,
     title: file.name.replace(/\.pdf$/i, ''),
     uploadDate: new Date().toISOString(),
+    musicXml: payload.musicXml,
+    boundingBoxes: payload.boundingBoxes,
+    pages: payload.pages.map((page) => ({
+      pageIndex: page.pageIndex,
+      image: base64ToBlob(page.imageBase64),
+      width: page.width,
+      height: page.height,
+    })),
+    sourcePdf: file,
+  }
+}
+
+// Re-runs OMR on an already-uploaded score's stored PDF (e.g. after the
+// parsing algorithm changes) without asking the user to re-upload the file.
+// Keeps id/title/uploadDate/sourcePdf, replaces the derived musicXml/
+// boundingBoxes/pages with freshly parsed output.
+export async function reprocessScore(score: ScoreRecord): Promise<ScoreRecord> {
+  if (!score.sourcePdf) {
+    throw new Error('This score has no stored PDF to reprocess (uploaded before this feature existed).')
+  }
+
+  const payload = await callProcessScore(score.sourcePdf, score.id)
+
+  return {
+    ...score,
     musicXml: payload.musicXml,
     boundingBoxes: payload.boundingBoxes,
     pages: payload.pages.map((page) => ({

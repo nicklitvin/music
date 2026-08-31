@@ -8,3 +8,6 @@ Thumbs.db
 # Env files (per-service .gitignore also covers these; kept here as a backstop)
 .env
 .env.local
+
+# Local scratch: test PDFs, downloaded log/notes JSON exports, etc.
+/content/

@@ -23,6 +23,11 @@ export interface ScoreRecord {
   musicXml: string
   boundingBoxes: NoteBoundingBox[]
   pages: ScorePage[]
+  // The original uploaded PDF, kept client-side (per the zero-server-storage
+  // constraint) so the OMR pipeline can be re-run later -- e.g. after the
+  // parsing algorithm improves -- without asking the user to re-upload.
+  // Optional because scores saved before this field existed won't have it.
+  sourcePdf?: Blob
 }
 
 export interface ProcessScoreResponse {

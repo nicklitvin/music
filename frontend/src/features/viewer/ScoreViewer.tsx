@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getScore } from '../../lib/db'
+import { getScore, saveScore } from '../../lib/db'
+import { reprocessScore } from '../../lib/api'
 import type { NoteDetectionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
 import { groupBoundingBoxesIntoLines, LineTracker, type ScoreLine } from '../../audio/scoreFollowing'
@@ -36,6 +37,8 @@ export function ScoreViewer() {
   const [activeNotes, setActiveNotes] = useState<string[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null)
+  const [isReprocessing, setIsReprocessing] = useState(false)
+  const [reprocessError, setReprocessError] = useState<string | null>(null)
 
   const lineTrackerRef = useRef<LineTracker | null>(null)
   const lineAnchorsRef = useRef(new Map<string, HTMLDivElement>())
@@ -95,16 +98,43 @@ export function ScoreViewer() {
     downloadJson(`${slugify(score?.title ?? 'score')}-notes.json`, score?.boundingBoxes ?? [])
   }, [score])
 
+  const handleReprocess = useCallback(async () => {
+    if (!score) return
+    setIsReprocessing(true)
+    setReprocessError(null)
+    try {
+      const updated = await reprocessScore(score)
+      await saveScore(updated)
+      pageUrls.forEach((url) => URL.revokeObjectURL(url))
+      setPageUrls(updated.pages.map((page) => URL.createObjectURL(page.image)))
+      setScore(updated)
+    } catch (err) {
+      setReprocessError(err instanceof Error ? err.message : 'Reprocessing failed')
+    } finally {
+      setIsReprocessing(false)
+    }
+  }, [score, pageUrls])
+
   if (!score) return <p>Loading score…</p>
 
   return (
     <div className="viewer">
       <header className="viewer-header">
         <h1>{score.title}</h1>
-        <button onClick={isTracking ? stop : handleStart}>
-          {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-        </button>
+        <div className="viewer-header-actions">
+          <button
+            onClick={handleReprocess}
+            disabled={isReprocessing || !score.sourcePdf}
+            title={score.sourcePdf ? 'Re-run note parsing on the original PDF' : 'No stored PDF to reprocess (uploaded before this feature existed)'}
+          >
+            {isReprocessing ? 'Reprocessing…' : 'Reprocess score'}
+          </button>
+          <button onClick={isTracking ? stop : handleStart}>
+            {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+          </button>
+        </div>
         {error && <span role="alert">{error}</span>}
+        {reprocessError && <span role="alert">{reprocessError}</span>}
       </header>
 
       <div className="active-notes">Detected: {activeNotes.join(', ') || '—'}</div>
