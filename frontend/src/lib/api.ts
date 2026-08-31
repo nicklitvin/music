@@ -31,6 +31,15 @@ async function callProcessScore(file: Blob, scoreId: string): Promise<ProcessSco
   return res.json()
 }
 
+function mapPages(pages: ProcessScoreResponse['pages']): ScoreRecord['pages'] {
+  return pages.map((page) => ({
+    pageIndex: page.pageIndex,
+    image: base64ToBlob(page.imageBase64),
+    width: page.width,
+    height: page.height,
+  }))
+}
+
 export async function processScore(file: File, scoreId: string): Promise<ScoreRecord> {
   const payload = await callProcessScore(file, scoreId)
 
@@ -40,12 +49,7 @@ export async function processScore(file: File, scoreId: string): Promise<ScoreRe
     uploadDate: new Date().toISOString(),
     musicXml: payload.musicXml,
     boundingBoxes: payload.boundingBoxes,
-    pages: payload.pages.map((page) => ({
-      pageIndex: page.pageIndex,
-      image: base64ToBlob(page.imageBase64),
-      width: page.width,
-      height: page.height,
-    })),
+    pages: mapPages(payload.pages),
     sourcePdf: file,
   }
 }
@@ -65,11 +69,31 @@ export async function reprocessScore(score: ScoreRecord): Promise<ScoreRecord> {
     ...score,
     musicXml: payload.musicXml,
     boundingBoxes: payload.boundingBoxes,
-    pages: payload.pages.map((page) => ({
-      pageIndex: page.pageIndex,
-      image: base64ToBlob(page.imageBase64),
-      width: page.width,
-      height: page.height,
-    })),
+    pages: mapPages(payload.pages),
+  }
+}
+
+// Loads the dev-only sample score (see backend/app/routers/dev.py) --
+// pre-computed note data for aLIEz.pdf's first page, served instantly from
+// local content/ instead of running OMR. Lets the tracking UI be tested
+// without waiting minutes per load. Throws if the backend has no local
+// sample data to serve (e.g. scripts/extract_notes.py hasn't been run).
+export async function loadSampleScore(page = 0): Promise<ScoreRecord> {
+  const res = await fetch(`${API_BASE_URL}/api/dev/sample-score?page=${page}`)
+  if (!res.ok) {
+    throw new Error(`Sample score unavailable: ${res.status} ${res.statusText}`)
+  }
+
+  const payload: ProcessScoreResponse = await res.json()
+
+  return {
+    id: payload.scoreId,
+    title: 'aLIEz (sample, page 1)',
+    uploadDate: new Date().toISOString(),
+    musicXml: payload.musicXml,
+    boundingBoxes: payload.boundingBoxes,
+    pages: mapPages(payload.pages),
+    // No sourcePdf: the sample PDF is local-only (gitignored, copyrighted
+    // sheet music), never sent to or stored in the browser.
   }
 }
