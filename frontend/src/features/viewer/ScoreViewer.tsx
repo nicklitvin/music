@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getScore, saveScore } from '../../lib/db'
 import { reprocessScore } from '../../lib/api'
-import type { NoteDetectionEvent, ScoreRecord } from '../../lib/types'
+import type { NoteBoundingBox, NoteDetectionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
 import { groupBoundingBoxesIntoLines, LineTracker, type ScoreLine } from '../../audio/scoreFollowing'
+import { MelodyTracker } from '../../audio/melodyTracking'
+
+type TrackingMode = 'melody' | 'line'
 
 const MAX_LOG_ENTRIES = 200
 
@@ -39,8 +42,10 @@ export function ScoreViewer() {
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null)
   const [isReprocessing, setIsReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState<string | null>(null)
+  const [trackingMode, setTrackingMode] = useState<TrackingMode>('melody')
 
   const lineTrackerRef = useRef<LineTracker | null>(null)
+  const melodyTrackerRef = useRef<MelodyTracker | null>(null)
   const lineAnchorsRef = useRef(new Map<string, HTMLDivElement>())
 
   useEffect(() => {
@@ -64,31 +69,52 @@ export function ScoreViewer() {
     return groupBoundingBoxesIntoLines(score.boundingBoxes, pageHeights)
   }, [score])
 
-  const handleNoteDetection = useCallback((event: NoteDetectionEvent) => {
-    setActiveNotes(event.notes)
-    if (event.notes.length > 0) {
-      setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+  // Lets the melody tracker's single-note results reuse the line-based
+  // highlight/scroll anchors, by finding which line a given note belongs to.
+  const boxLineKey = useMemo(() => {
+    const map = new Map<NoteBoundingBox, string>()
+    for (const line of lines) {
+      for (const box of line.boxes) map.set(box, lineKey(line))
     }
+    return map
+  }, [lines])
 
-    const newLine = lineTrackerRef.current?.observe(event.notes)
-    if (newLine) {
-      const key = lineKey(newLine)
-      setActiveLineKey(key)
-      // Keep the newly-detected line comfortably in view -- centered, so it
-      // is never pinned at the bottom edge of the viewport as the score
-      // scrolls along with playback.
-      lineAnchorsRef.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
+  const goToLine = useCallback((key: string) => {
+    setActiveLineKey(key)
+    // Keep the newly-detected line comfortably in view -- centered, so it
+    // is never pinned at the bottom edge of the viewport as the score
+    // scrolls along with playback.
+    lineAnchorsRef.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
+
+  const handleNoteDetection = useCallback(
+    (event: NoteDetectionEvent) => {
+      setActiveNotes(event.notes)
+      if (event.notes.length > 0) {
+        setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+      }
+
+      if (trackingMode === 'line') {
+        const newLine = lineTrackerRef.current?.observe(event.notes)
+        if (newLine) goToLine(lineKey(newLine))
+      } else {
+        const newNote = melodyTrackerRef.current?.observe(event.notes)
+        const key = newNote && boxLineKey.get(newNote)
+        if (key) goToLine(key)
+      }
+    },
+    [trackingMode, boxLineKey, goToLine],
+  )
 
   const { isTracking, error, start, stop } = useAudioTracking({ onNoteDetection: handleNoteDetection })
 
   const handleStart = useCallback(() => {
     setLogs([])
     setActiveLineKey(null)
-    lineTrackerRef.current = new LineTracker(lines)
+    lineTrackerRef.current = trackingMode === 'line' ? new LineTracker(lines) : null
+    melodyTrackerRef.current = trackingMode === 'melody' ? new MelodyTracker(score?.boundingBoxes ?? []) : null
     start()
-  }, [start, lines])
+  }, [start, lines, score, trackingMode])
 
   const handleDownloadLogs = useCallback(() => {
     downloadJson(`${slugify(score?.title ?? 'score')}-detection-log.json`, logs)
@@ -129,6 +155,15 @@ export function ScoreViewer() {
           >
             {isReprocessing ? 'Reprocessing…' : 'Reprocess score'}
           </button>
+          <select
+            value={trackingMode}
+            onChange={(e) => setTrackingMode(e.target.value as TrackingMode)}
+            disabled={isTracking}
+            title="How position on the sheet is tracked from the detected audio"
+          >
+            <option value="melody">Melody (highest note)</option>
+            <option value="line">Line matching (chords)</option>
+          </select>
           <button onClick={isTracking ? stop : handleStart}>
             {isTracking ? 'Stop Tracking' : 'Start Tracking'}
           </button>
