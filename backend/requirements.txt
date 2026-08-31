@@ -4,4 +4,16 @@ python-multipart==0.0.20
 pymupdf==1.25.2
 websockets==14.1
 pydantic-settings==2.7.1
-numpy==2.2.1
+
+# OMR (oemer) and its pretrained ONNX models need an older, mutually
+# compatible pin set -- oemer's models fail to load on today's onnxruntime,
+# and pulling in unpinned "latest" scipy/opencv/scikit-learn alongside an
+# onnxruntime old enough to load them drags numpy back to <2, which they in
+# turn refuse. This exact set is the one verified to import and run
+# end-to-end together (see oemer_engine.py).
+numpy==1.26.4
+scipy==1.11.4
+opencv-python-headless==4.10.0.84
+scikit-learn==1.5.2
+onnxruntime-gpu==1.18.1
+oemer==0.1.8

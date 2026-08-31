@@ -1,12 +1,12 @@
 """Optical Music Recognition pipeline.
 
-Page rendering (PDF -> PNG, in-memory only) is real, via PyMuPDF. Note-level
-recognition (MusicXML + bounding boxes) is a stub pending integration with a
-real OMR engine (e.g. Audiveris run out-of-process, or an OMR API). The stub
-still returns a well-formed, minimal MusicXML document and one placeholder
-bounding box per page so the frontend pipeline (IndexedDB save, viewer
-overlay, WebSocket note matching) can be built and tested end-to-end before
-real recognition is wired in.
+Page rendering (PDF -> PNG, in-memory only) is via PyMuPDF. Note-level
+recognition (MusicXML + per-note bounding boxes) runs the real `oemer` OMR
+model per page -- see oemer_engine.py's docstring for how pitch and bounding
+boxes are extracted from it. This is CPU-bound and slow (multiple minutes
+per page on a machine with no GPU) -- `process_pdf` is meant to be run off
+the event loop (see the /api/process-score route, which offloads it to a
+thread pool).
 """
 
 import base64
@@ -16,6 +16,7 @@ import fitz  # PyMuPDF
 
 from app.config import settings
 from app.models import NoteBoundingBox, ScorePage
+from app.services import oemer_engine
 
 
 @dataclass
@@ -39,18 +40,16 @@ def render_pages(pdf_bytes: bytes) -> list[tuple[int, bytes, int, int]]:
     return pages
 
 
-def _stub_music_xml(page_count: int) -> str:
-    return (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<score-partwise version="4.0">\n'
-        "  <part-list>\n"
-        '    <score-part id="P1"><part-name>Piano</part-name></score-part>\n'
-        "  </part-list>\n"
-        '  <part id="P1">\n'
-        f"    <!-- TODO: replace with real OMR output for {page_count} page(s) -->\n"
-        "  </part>\n"
-        "</score-partwise>\n"
-    )
+def _combine_music_xml(per_page_xml: list[str]) -> str:
+    # Each page is independently transcribed by oemer as its own complete
+    # MusicXML document (own measure numbering, own <part-list>) -- there's
+    # no per-note consumer of this field in the app today (it's stored and
+    # passed through only), so pages are concatenated with a clear marker
+    # rather than merged into one continuous part, which would need
+    # renumbering measures and merging parts across pages.
+    if len(per_page_xml) == 1:
+        return per_page_xml[0]
+    return "\n".join(f"<!-- page {i} -->\n{xml}" for i, xml in enumerate(per_page_xml))
 
 
 def process_pdf(pdf_bytes: bytes) -> OMRResult:
@@ -66,23 +65,15 @@ def process_pdf(pdf_bytes: bytes) -> OMRResult:
         for index, png_bytes, width, height in rendered
     ]
 
-    # Placeholder bounding box per page until real OMR note extraction lands.
-    bounding_boxes = [
-        NoteBoundingBox(
-            x=page.width * 0.1,
-            y=page.height * 0.1,
-            width=page.width * 0.05,
-            height=page.height * 0.03,
-            note="quarter",
-            pitch="C4",
-            measureIndex=0,
-            pageIndex=page.pageIndex,
-        )
-        for page in pages
-    ]
+    bounding_boxes: list[NoteBoundingBox] = []
+    per_page_xml: list[str] = []
+    for index, png_bytes, width, height in rendered:
+        boxes, page_xml = oemer_engine.extract_page(png_bytes, index, width, height)
+        bounding_boxes.extend(boxes)
+        per_page_xml.append(page_xml)
 
     return OMRResult(
-        music_xml=_stub_music_xml(len(pages)),
+        music_xml=_combine_music_xml(per_page_xml),
         bounding_boxes=bounding_boxes,
         pages=pages,
     )

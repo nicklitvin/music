@@ -23,6 +23,8 @@ import math
 
 import numpy as np
 
+from app.services.note_naming import midi_to_note_name
+
 SAMPLE_RATE = 16000
 SILENCE_RMS_THRESHOLD = 500.0
 
@@ -52,14 +54,10 @@ HARMONIC_TOLERANCE = 0.03
 
 MAX_CONCURRENT_NOTES = 6
 
-_NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
 
 def _freq_to_note_name(freq_hz: float) -> str:
     midi = round(69 + 12 * math.log2(freq_hz / 440.0))
-    name = _NOTE_NAMES[midi % 12]
-    octave = midi // 12 - 1
-    return f"{name}{octave}"
+    return midi_to_note_name(midi)
 
 
 def _is_harmonic_of(freq_hz: float, fundamental_hz: float) -> bool:

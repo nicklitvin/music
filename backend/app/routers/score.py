@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.models import ProcessScoreResponse
 from app.services import omr
@@ -18,13 +19,19 @@ async def process_score(file: UploadFile = File(...), scoreId: str = Form(...)) 
         raise HTTPException(status_code=413, detail="PDF exceeds maximum upload size")
 
     try:
-        result = omr.process_pdf(pdf_bytes)
+        # process_pdf is slow (real OMR inference, minutes per page) and
+        # synchronous/CPU-bound -- run it off the event loop so it doesn't
+        # block other requests (including in-flight audio-tracking
+        # WebSockets) for the duration.
+        result = await run_in_threadpool(omr.process_pdf, pdf_bytes)
     except Exception as exc:  # malformed PDF, etc.
         raise HTTPException(status_code=422, detail=f"Failed to process PDF: {exc}") from exc
     finally:
-        # Zero-server-storage: nothing was ever written to disk, and the only
-        # in-memory copy (pdf_bytes / result) goes out of scope when this
-        # request handler returns.
+        # Zero-server-storage: the uploaded PDF and rendered page images are
+        # never written to disk, and this in-memory copy goes out of scope
+        # when the request handler returns. (OMR does write each page's PNG
+        # to a short-lived, auto-deleted temp file during its own
+        # processing -- see oemer_engine.py's docstring for why.)
         del pdf_bytes
 
     return ProcessScoreResponse(

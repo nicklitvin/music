@@ -31,7 +31,7 @@ export function UploadScore() {
     <div className="upload">
       <h1>Upload Sheet Music</h1>
       <input type="file" accept="application/pdf" onChange={handleFileChange} disabled={isProcessing} />
-      {isProcessing && <p>Processing score…</p>}
+      {isProcessing && <p>Processing score… OMR runs for real per page, so this can take several minutes per page.</p>}
       {error && <p role="alert">{error}</p>}
     </div>
   )
