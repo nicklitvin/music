@@ -140,4 +140,33 @@ export class MelodyTracker {
     this.pendingStreak = 0
     return this.sequence[bestIndex].box
   }
+
+  // The reader scrolled the page by hand. That is a statement about where
+  // they actually are, and usually a correction -- they scrolled precisely
+  // because the highlight was in the wrong place. So it overrides the
+  // tracked position outright rather than competing with it: audio
+  // evidence that led somewhere the reader just contradicted is not
+  // evidence worth preserving.
+  //
+  // Any part-built streak is dropped too, since it was accumulated toward
+  // a position the reader has now rejected.
+  hintPosition(box: NoteBoundingBox): void {
+    const entry = this.sequence.find((candidate) => candidate.box === box)
+    if (!entry) return
+    this.currentIndex = entry.index
+    this.pendingIndex = null
+    this.pendingStreak = 0
+  }
+
+  // Nearest note to a point on the page, for turning a scroll offset into
+  // a position hint.
+  nearestTo(pageIndex: number, y: number): NoteBoundingBox | null {
+    let best: { box: NoteBoundingBox; distance: number } | null = null
+    for (const { box } of this.sequence) {
+      if (box.pageIndex !== pageIndex) continue
+      const distance = Math.abs(box.y + box.height / 2 - y)
+      if (!best || distance < best.distance) best = { box, distance }
+    }
+    return best?.box ?? null
+  }
 }

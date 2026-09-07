@@ -113,3 +113,48 @@ describe('MelodyTracker', () => {
     expect(tracker.observe(['B5'])).toBeNull()
   })
 })
+
+describe('MelodyTracker position hints', () => {
+  it('moves to the hinted note even when confidently elsewhere', () => {
+    const boxes = makeSequenceBoxes(['C4', 'D4', 'E4', 'F4', 'G4'])
+    const tracker = new MelodyTracker(boxes, { requiredStreak: 1 })
+    tracker.observe(['E4'])
+    expect(tracker.getCurrentNote()).toBe(boxes[2])
+
+    tracker.hintPosition(boxes[0])
+
+    expect(tracker.getCurrentNote()).toBe(boxes[0])
+  })
+
+  it('clears a part-built streak, so a rejected candidate cannot land later', () => {
+    const boxes = makeSequenceBoxes(['C4', 'D4', 'E4', 'F4'])
+    const tracker = new MelodyTracker(boxes, { requiredStreak: 2 })
+    tracker.observe(['F4']) // streak of 1 toward index 3
+
+    tracker.hintPosition(boxes[1])
+    // One more F4 would have completed the old streak; it must not.
+    expect(tracker.observe(['F4'])).toBeNull()
+    expect(tracker.getCurrentNote()).toBe(boxes[1])
+  })
+
+  it('ignores a hint for a note that is not in the score', () => {
+    const boxes = makeSequenceBoxes(['C4', 'D4'])
+    const tracker = new MelodyTracker(boxes, { requiredStreak: 1 })
+    tracker.hintPosition(box({ pitch: 'B7' }))
+
+    expect(tracker.getCurrentNote()).toBe(boxes[0])
+  })
+
+  it('nearestTo finds the note closest to a point on the page', () => {
+    const boxes = [
+      box({ pitch: 'C4', y: 0, pageIndex: 0 }),
+      box({ pitch: 'D4', y: 500, pageIndex: 0 }),
+      box({ pitch: 'E4', y: 100, pageIndex: 1 }),
+    ]
+    const tracker = new MelodyTracker(boxes)
+
+    expect(tracker.nearestTo(0, 480)?.pitch).toBe('D4')
+    expect(tracker.nearestTo(1, 0)?.pitch).toBe('E4')
+    expect(tracker.nearestTo(9, 0)).toBeNull()
+  })
+})

@@ -91,24 +91,59 @@ def build_templates(timeline: list[TimelineOnset]) -> np.ndarray:
 
 @dataclass
 class MarkovConfig:
-    # Sharpens cosine similarity into a log-likelihood. Swept, not guessed.
-    temperature: float = 0.06
+    # Sharpens cosine similarity into a log-likelihood. Swept against the
+    # degraded-performance set, not just clean audio: too low and a single
+    # corrupted frame can outweigh all the evidence before it.
+    temperature: float = 0.10
     # Onsets a single transition may advance past, covering onsets too
     # quiet or too brief to register.
     max_skip: int = 2
     # Multiplicative cost per extra onset skipped: skipping stays possible
     # but never free.
     skip_decay: float = 0.02
-    # Probability mass spread uniformly over the whole score each step.
-    # This is what lets the model recover from a wrong lock-in and what
-    # makes a mid-piece restart findable; without it, belief that has
-    # collapsed onto the wrong onset can never climb back.
+    # Probability mass spread uniformly over the whole score each step --
+    # what lets the model recover from a wrong lock-in and makes a
+    # mid-piece restart findable. Without it, belief that has collapsed
+    # onto the wrong onset can never climb back.
+    #
+    # It is gated on confidence because the two situations need opposite
+    # things. While the model does not know where it is, it must be free
+    # to consider anywhere. Once it does, that same freedom is a liability:
+    # on a flawed performance a single badly-matching frame would otherwise
+    # teleport a confident tracker to an unrelated part of the page. So
+    # searching is cheap while lost and expensive once settled.
     jump_probability: float = 1e-4
+    jump_probability_confident: float = 1e-10
+    # Confidence above which the model counts as settled.
+    jump_confidence_gate: float = 0.9
     # Belief within +/- this many onsets of the best guess counts toward
     # confidence. Neighbours are legitimately ambiguous -- they share most
     # of their sounding notes -- so demanding all the mass on one onset
     # would understate how well the position is actually known.
     confidence_radius: int = 2
+
+    # --- tempo adaptation ---
+    # The dwell model is built from the score's marked tempo, but nobody
+    # plays at exactly that, and a performer who is 20% fast makes the
+    # model expect every onset to last longer than it does, so tracking
+    # lags further behind with each onset. These let the expected dwell
+    # follow the tempo actually being played.
+    adapt_tempo: bool = True
+    # How many frames of history the tempo estimate is measured over.
+    # Long enough to average out per-onset noise, short enough to follow a
+    # performer who is speeding up.
+    tempo_window_frames: int = 60
+    # EMA weight for each new tempo measurement. Deliberately small: the
+    # estimate feeds back into the tracking that produces it, so reacting
+    # fast risks a tracker that lags, infers "slow", and lags further.
+    tempo_smoothing: float = 0.1
+    # Hard limits on the inferred ratio, so a spell of bad tracking cannot
+    # drive the dwell model somewhere absurd it cannot return from.
+    min_tempo_ratio: float = 0.5
+    max_tempo_ratio: float = 2.5
+    # Only learn tempo while the position is trusted; measuring it from a
+    # lost tracker is what turns a wrong guess into a stuck one.
+    tempo_min_confidence: float = 0.6
 
 
 @dataclass
@@ -145,9 +180,48 @@ class MarkovPositionTracker:
         self._log_belief = np.full(count, -math.log(count) if count else 0.0)
         self._expected_frames: np.ndarray | None = None
 
+        # Ratio of the tempo actually being played to the score's marked
+        # tempo. 1.0 until there is evidence otherwise.
+        self.tempo_ratio = 1.0
+        self._frame_seconds = 0.0
+        self._recent: list[tuple[int, int]] = []  # (frame number, position)
+        self._frame_number = 0
+
     def _transition_log_probs(self, frame_seconds: float) -> None:
         durations = np.array([onset.advance_seconds for onset in self.timeline])
+        self._frame_seconds = frame_seconds
         self._expected_frames = np.maximum(1.0, durations / max(frame_seconds, 1e-6))
+
+    def _update_tempo(self, position: int, confidence: float) -> None:
+        """Infers the played tempo from how fast the position is advancing.
+
+        Compares onsets actually covered over the recent window against how
+        many the score says should have been covered in that time. Only
+        runs while the position is trusted, and only forwards -- a backward
+        jump is a correction or a repeat, not evidence about tempo.
+        """
+        assert self._expected_frames is not None
+        self._recent.append((self._frame_number, position))
+        cutoff = self._frame_number - self.config.tempo_window_frames
+        self._recent = [entry for entry in self._recent if entry[0] >= cutoff]
+
+        if confidence < self.config.tempo_min_confidence or len(self._recent) < 2:
+            return
+
+        (first_frame, first_position), (last_frame, last_position) = self._recent[0], self._recent[-1]
+        onsets_advanced = last_position - first_position
+        frames_elapsed = last_frame - first_frame
+        if onsets_advanced <= 0 or frames_elapsed <= 0:
+            return
+
+        # Frames the score expects those same onsets to have taken.
+        expected = float(self._expected_frames[first_position:last_position].sum())
+        if expected <= 0:
+            return
+
+        measured = expected / frames_elapsed
+        blended = (1 - self.config.tempo_smoothing) * self.tempo_ratio + self.config.tempo_smoothing * measured
+        self.tempo_ratio = float(np.clip(blended, self.config.min_tempo_ratio, self.config.max_tempo_ratio))
 
     def _advance(self) -> np.ndarray:
         """Applies the transition model to the current belief."""
@@ -155,7 +229,10 @@ class MarkovPositionTracker:
         belief = np.exp(self._log_belief - self._log_belief.max())
         belief /= belief.sum()
 
-        advance_prob = 1.0 / self._expected_frames
+        # Scale the expected dwell by the tempo actually being played, so a
+        # performer running fast advances the belief at their rate.
+        effective_frames = np.maximum(1.0, self._expected_frames / self.tempo_ratio)
+        advance_prob = 1.0 / effective_frames
         moved = belief * (1.0 - advance_prob)  # stayed put
 
         remaining = belief * advance_prob
@@ -169,7 +246,8 @@ class MarkovPositionTracker:
             shifted[-1] += remaining[-step:].sum() * weights[step - 1]
             moved += shifted
 
-        jump = self.config.jump_probability
+        settled = self.estimate().confidence >= self.config.jump_confidence_gate
+        jump = self.config.jump_probability_confident if settled else self.config.jump_probability
         moved = (1.0 - jump) * moved + jump / len(moved)
         return moved / moved.sum()
 
@@ -179,6 +257,7 @@ class MarkovPositionTracker:
             self._transition_log_probs(len(frame) / self.estimator.sample_rate)
 
         if salience.any():
+            self._frame_number += 1
             prior = self._advance()
             log_likelihood = (self.templates @ salience) / self.config.temperature
             log_posterior = np.log(np.maximum(prior, 1e-300)) + log_likelihood
@@ -186,6 +265,56 @@ class MarkovPositionTracker:
             posterior = np.exp(log_posterior)
             posterior /= posterior.sum()
             self._log_belief = np.log(np.maximum(posterior, 1e-300))
+
+            if self.config.adapt_tempo:
+                estimate = self.estimate()
+                self._update_tempo(estimate.index, estimate.confidence)
+                return estimate
+
+        return self.estimate()
+
+    def apply_hint(self, index: int, strength: float = 0.95, width: float = 3.0) -> PositionEstimate:
+        """Fold in an outside claim about where the player is.
+
+        Scrolling the page by hand is a statement -- the reader is looking
+        here -- and it is usually a correction, made precisely because the
+        display was in the wrong place. So this is mixed into the belief
+        rather than multiplied through it: a confidently wrong tracker has
+        assigned the correct region a probability near zero, and anything
+        multiplicative would scale that to approximately zero again. The
+        mixture puts real mass back on the hinted region regardless of how
+        certain the model previously was.
+
+        The hint is a bump, not a spike, because a scroll says roughly
+        where, not exactly which onset -- `width` onsets of slack either
+        side. Audio evidence then sharpens it over the next few frames.
+
+        `strength` is how much of the belief the hint claims, and defaults
+        high deliberately: the residual left to a *confidently* wrong
+        tracker is concentrated on one onset, while the hint's is spread
+        over `width` of them, so a merely moderate strength loses to the
+        very mistake the reader was correcting.
+        """
+        if not len(self._log_belief):
+            return self.estimate()
+
+        index = int(np.clip(index, 0, len(self._log_belief) - 1))
+        strength = float(np.clip(strength, 0.0, 1.0))
+
+        belief = np.exp(self._log_belief - self._log_belief.max())
+        belief /= belief.sum()
+
+        positions = np.arange(len(belief))
+        bump = np.exp(-0.5 * ((positions - index) / max(width, 1e-6)) ** 2)
+        bump /= bump.sum()
+
+        blended = (1.0 - strength) * belief + strength * bump
+        blended /= blended.sum()
+        self._log_belief = np.log(np.maximum(blended, 1e-300))
+
+        # A manual correction invalidates the tempo history, which was
+        # measured from positions now believed to be wrong.
+        self._recent.clear()
 
         return self.estimate()
 

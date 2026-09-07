@@ -21,6 +21,7 @@ import argparse
 import json
 import sys
 import wave
+from dataclasses import replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -29,6 +30,7 @@ import numpy as np  # noqa: E402
 import pretty_midi  # noqa: E402
 
 from app.models import NoteBoundingBox  # noqa: E402
+from app.services.performance_simulation import PRESETS, simulate  # noqa: E402
 from app.services.score_timeline import build_timeline  # noqa: E402
 
 SAMPLE_RATE = 16000  # matches the live audio pipeline's rate
@@ -65,10 +67,19 @@ def main() -> None:
     parser.add_argument("--tempo", type=float, default=99.0, help="Quarter notes per minute (default: 99)")
     parser.add_argument("--out-wav", type=Path, default=None)
     parser.add_argument("--out-truth", type=Path, default=None)
+    parser.add_argument(
+        "--performance",
+        default="clean",
+        choices=sorted(PRESETS),
+        help="Which flawed-performance preset to render (default: clean, straight from the score)",
+    )
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    out_wav = args.out_wav or args.notes_json.with_name(f"{args.notes_json.stem}-page{args.page}.wav")
-    out_truth = args.out_truth or args.notes_json.with_name(f"{args.notes_json.stem}-page{args.page}-truth.json")
+    suffix = "" if args.performance == "clean" else f"-{args.performance}"
+    stem = f"{args.notes_json.stem}-page{args.page}{suffix}"
+    out_wav = args.out_wav or args.notes_json.with_name(f"{stem}.wav")
+    out_truth = args.out_truth or args.notes_json.with_name(f"{stem}-truth.json")
 
     raw = json.loads(args.notes_json.read_text(encoding="utf-8"))
     notes = [NoteBoundingBox(**entry) for entry in raw if entry["pageIndex"] == args.page]
@@ -78,36 +89,49 @@ def main() -> None:
     timeline = build_timeline(notes, tempo_bpm=args.tempo)
     print(f"{len(notes)} notes -> {len(timeline)} onsets", file=sys.stderr)
 
-    midi = pretty_midi.PrettyMIDI(initial_tempo=args.tempo)
+    config = replace(PRESETS[args.performance], seed=args.seed)
+    performance = simulate(timeline, config)
+    print(f"performance '{args.performance}': {len(performance.notes)} notes played", file=sys.stderr)
+
     piano = pretty_midi.Instrument(program=ACOUSTIC_GRAND_PIANO)
-    for onset in timeline:
-        for note, duration in zip(onset.notes, onset.note_durations):
-            number = pretty_midi.note_name_to_number(note.pitch)
-            piano.notes.append(
-                pretty_midi.Note(
-                    velocity=90,
-                    pitch=number,
-                    start=onset.start_seconds,
-                    end=onset.start_seconds + duration,
-                )
+    for played in performance.notes:
+        piano.notes.append(
+            pretty_midi.Note(
+                velocity=90,
+                pitch=pretty_midi.note_name_to_number(played.pitch),
+                start=played.start_seconds,
+                end=played.start_seconds + played.duration_seconds,
             )
-    midi.instruments.append(piano)
+        )
 
     samples = piano.synthesize(fs=SAMPLE_RATE, wave=piano_wave)
+    if config.noise_level:
+        rng = np.random.default_rng(config.seed)
+        peak = np.max(np.abs(samples)) or 1.0
+        samples = samples + rng.normal(0.0, config.noise_level * peak, size=samples.shape)
     write_wav(out_wav, samples, SAMPLE_RATE)
     duration_seconds = len(samples) / SAMPLE_RATE
     print(f"Wrote {out_wav} ({duration_seconds:.1f}s, {len(piano.notes)} midi notes)", file=sys.stderr)
 
+    # Onsets carry two different times, and conflating them is the easy
+    # mistake here. `startSeconds` is when the onset was *played*, so it is
+    # what evaluation compares audio against. `scoreSeconds` is where the
+    # score says it belongs, which is what the tracker's own dwell model is
+    # built from -- the tracker only ever sees the score, never the
+    # performance's real timing.
     truth = {
         "sourceNotesJson": args.notes_json.name,
         "pageIndex": args.page,
         "tempoBpm": args.tempo,
+        "performance": args.performance,
+        "seed": args.seed,
         "sampleRate": SAMPLE_RATE,
         "durationSeconds": duration_seconds,
         "onsets": [
             {
                 "index": onset.index,
-                "startSeconds": onset.start_seconds,
+                "startSeconds": performance.onset_times[onset.index],
+                "scoreSeconds": onset.start_seconds,
                 "advanceSeconds": onset.advance_seconds,
                 "pitches": onset.pitches,
                 # Per-note sounding lengths, parallel to `pitches`. A note

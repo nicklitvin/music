@@ -178,4 +178,17 @@ export class LineTracker {
     this.pendingStreak = 0
     return this.lines[bestIndex]
   }
+
+  // The reader scrolled the page by hand, which says where they actually
+  // are -- and usually says the tracker was wrong, since that is why they
+  // scrolled. It therefore overrides the tracked line, and drops any
+  // part-built streak, which was accumulated toward a line the reader has
+  // just contradicted.
+  hintPosition(line: ScoreLine): void {
+    const index = this.lines.indexOf(line)
+    if (index < 0) return
+    this.currentIndex = index
+    this.pendingIndex = null
+    this.pendingStreak = 0
+  }
 }

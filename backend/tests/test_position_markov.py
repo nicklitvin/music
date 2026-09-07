@@ -182,3 +182,58 @@ def test_jump_probability_of_zero_still_tracks_forward():
     estimates = feed(tracker, render(SEQUENCE))
 
     assert estimates[-1].index == len(SEQUENCE) - 1
+
+
+def test_hint_moves_a_confidently_wrong_tracker():
+    # The case that motivates mixing rather than multiplying: once belief
+    # has collapsed, the correct region's probability is ~0, and scaling
+    # zero leaves zero.
+    timeline = sequence_timeline()
+    tracker = MarkovPositionTracker(timeline)
+    feed(tracker, render(SEQUENCE))
+    assert tracker.estimate().index == len(SEQUENCE) - 1
+    assert tracker.estimate().confidence > 0.9
+
+    estimate = tracker.apply_hint(0)
+
+    assert estimate.index == 0
+
+
+def test_hint_is_a_region_not_a_spike():
+    timeline = sequence_timeline()
+    tracker = MarkovPositionTracker(timeline)
+
+    estimate = tracker.apply_hint(3)
+
+    # Neighbours of the hinted onset keep real probability, because a
+    # scroll says roughly where, not exactly which onset.
+    nearby = dict(estimate.candidates)
+    assert any(index != 3 and probability > 0.05 for index, probability in nearby.items())
+
+
+def test_hint_lets_audio_take_over_again():
+    timeline = sequence_timeline()
+    tracker = MarkovPositionTracker(timeline)
+    tracker.apply_hint(0)
+
+    # Audio for the end of the sequence should still win over the hint.
+    estimates = feed(tracker, render(SEQUENCE[4:], frames_each=14))
+
+    assert estimates[-1].index == len(SEQUENCE) - 1
+
+
+def test_hint_clamps_out_of_range_indices():
+    timeline = sequence_timeline()
+    tracker = MarkovPositionTracker(timeline)
+
+    assert tracker.apply_hint(-50).index == 0
+    assert tracker.apply_hint(9999).index == len(timeline) - 1
+
+
+def test_hint_strength_zero_leaves_belief_alone():
+    timeline = sequence_timeline()
+    tracker = MarkovPositionTracker(timeline)
+    feed(tracker, render(SEQUENCE[:3]))
+    before = tracker.estimate().index
+
+    assert tracker.apply_hint(len(timeline) - 1, strength=0.0).index == before

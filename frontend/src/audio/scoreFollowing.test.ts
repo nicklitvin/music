@@ -112,3 +112,34 @@ describe('LineTracker', () => {
     expect(tracker.observe(['E4'])?.lineIndex).toBe(2) // streak 2 -> commit
   })
 })
+
+describe('LineTracker position hints', () => {
+  it('moves to the hinted line even when confidently elsewhere', () => {
+    const lines = makeLines([['C4'], ['D4'], ['E4'], ['F4']])
+    const tracker = new LineTracker(lines, { requiredStreak: 1 })
+    tracker.observe(['E4'])
+    expect(tracker.getCurrentLine()?.lineIndex).toBe(2)
+
+    tracker.hintPosition(lines[0])
+
+    expect(tracker.getCurrentLine()?.lineIndex).toBe(0)
+  })
+
+  it('clears a part-built streak toward a line the reader rejected', () => {
+    const lines = makeLines([['C4'], ['D4'], ['E4']])
+    const tracker = new LineTracker(lines, { requiredStreak: 2 })
+    tracker.observe(['E4']) // streak of 1 toward line 2
+
+    tracker.hintPosition(lines[1])
+    expect(tracker.observe(['E4'])).toBeNull()
+    expect(tracker.getCurrentLine()?.lineIndex).toBe(1)
+  })
+
+  it('ignores a line that is not part of this score', () => {
+    const lines = makeLines([['C4'], ['D4']])
+    const tracker = new LineTracker(lines, { requiredStreak: 1 })
+    tracker.hintPosition({ pageIndex: 9, lineIndex: 9, y: 0, boxes: [] })
+
+    expect(tracker.getCurrentLine()?.lineIndex).toBe(0)
+  })
+})

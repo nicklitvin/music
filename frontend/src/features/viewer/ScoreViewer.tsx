@@ -11,6 +11,13 @@ type TrackingMode = 'melody' | 'line'
 
 const MAX_LOG_ENTRIES = 200
 
+// How long after a scroll stops before it counts as the reader settling
+// somewhere, rather than still on their way there.
+const SCROLL_SETTLE_MS = 250
+// How long our own smooth auto-scroll is expected to still be moving.
+// Scroll events inside this window are ours, not the reader's.
+const AUTO_SCROLL_SETTLE_MS = 800
+
 interface LogEntry extends NoteDetectionEvent {
   receivedAt: number
 }
@@ -47,6 +54,7 @@ export function ScoreViewer() {
   const lineTrackerRef = useRef<LineTracker | null>(null)
   const melodyTrackerRef = useRef<MelodyTracker | null>(null)
   const lineAnchorsRef = useRef(new Map<string, HTMLDivElement>())
+  const autoScrollUntilRef = useRef(0)
 
   useEffect(() => {
     if (!scoreId) return
@@ -81,11 +89,16 @@ export function ScoreViewer() {
 
   const goToLine = useCallback((key: string) => {
     setActiveLineKey(key)
+    // Our own scroll, not the reader's -- mark it so the scroll listener
+    // does not read it back as a manual correction and hint the tracker
+    // toward the position the tracker itself just chose.
+    autoScrollUntilRef.current = performance.now() + AUTO_SCROLL_SETTLE_MS
     // Keep the newly-detected line comfortably in view -- centered, so it
     // is never pinned at the bottom edge of the viewport as the score
     // scrolls along with playback.
     lineAnchorsRef.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
+
 
   const handleNoteDetection = useCallback(
     (event: NoteDetectionEvent) => {
@@ -107,6 +120,47 @@ export function ScoreViewer() {
   )
 
   const { isTracking, error, start, stop } = useAudioTracking({ onNoteDetection: handleNoteDetection })
+
+  // A manual scroll says the reader is looking somewhere else, and is
+  // usually a correction -- they scrolled because the highlight was wrong.
+  // Find whichever line is nearest the middle of the viewport and move the
+  // active tracker there.
+  const handleManualScroll = useCallback(() => {
+    if (performance.now() < autoScrollUntilRef.current) return
+
+    const viewportMiddle = window.innerHeight / 2
+    let nearest: { key: string; distance: number } | null = null
+    for (const [key, element] of lineAnchorsRef.current) {
+      const distance = Math.abs(element.getBoundingClientRect().top - viewportMiddle)
+      if (!nearest || distance < nearest.distance) nearest = { key, distance }
+    }
+    if (!nearest) return
+
+    const target = nearest.key
+    const line = lines.find((candidate) => lineKey(candidate) === target)
+    if (!line) return
+
+    lineTrackerRef.current?.hintPosition(line)
+    if (line.boxes.length > 0) melodyTrackerRef.current?.hintPosition(line.boxes[0])
+    setActiveLineKey(target)
+  }, [lines])
+
+  useEffect(() => {
+    if (!isTracking) return
+    let timer: number | undefined
+    const onScroll = () => {
+      // Wait for scrolling to stop: hinting on every intermediate event of
+      // a long scroll would drag the tracker across everything passed on
+      // the way to where the reader was actually heading.
+      window.clearTimeout(timer)
+      timer = window.setTimeout(handleManualScroll, SCROLL_SETTLE_MS)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.clearTimeout(timer)
+    }
+  }, [isTracking, handleManualScroll])
 
   const handleStart = useCallback(() => {
     setLogs([])
