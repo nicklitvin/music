@@ -21,3 +21,9 @@ oemer==0.1.8
 # Used directly by scripts/annotate_notes.py (oemer pulls it in transitively
 # too, but this script takes a direct dependency on it).
 pillow==12.3.0
+
+# Sequences and synthesizes a score to a piano WAV -- see
+# scripts/synthesize_score.py. Used to produce reproducible test audio whose
+# correct position is known at every instant, which is what
+# scripts/evaluate_tracking.py measures tracking accuracy against.
+pretty_midi==0.2.11.post0
