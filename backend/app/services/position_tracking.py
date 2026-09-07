@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from app.services.note_estimation import HarmonicSalienceEstimator
 from app.services.score_timeline import TimelineOnset
 
 SAMPLE_RATE = 16000
@@ -117,20 +118,6 @@ class BaseTracker:
         self.timeline = timeline
         self.config = config or TrackerConfig()
         self.position = 0
-        self._history = np.zeros(0)
-
-    def _analysis_window(self, frame: np.ndarray) -> np.ndarray:
-        """The most recent ANALYSIS_WINDOW_SAMPLES, including this frame.
-
-        Always exactly that many samples, zero-padded at the start while
-        the stream is still short. A constant length keeps the FFT size --
-        and so the precomputed harmonic bin indices, which are only valid
-        for one FFT size -- stable from the very first frame.
-        """
-        self._history = np.concatenate([self._history, frame])[-ANALYSIS_WINDOW_SAMPLES:]
-        if len(self._history) < ANALYSIS_WINDOW_SAMPLES:
-            return np.concatenate([np.zeros(ANALYSIS_WINDOW_SAMPLES - len(self._history)), self._history])
-        return self._history
 
     def _candidate_range(self) -> range:
         start = max(0, self.position - self.config.search_behind)
@@ -156,16 +143,6 @@ class BaseTracker:
                 return self.position
             self.position = best_index
         return self.position
-
-
-# Frames arrive every ~75ms, but 75ms of audio only resolves ~13Hz, and
-# adjacent semitones down in the bass are a couple of Hz apart -- so a
-# single frame cannot tell low notes apart at all. Analysis therefore runs
-# over a rolling window of the most recent samples, longer than one frame,
-# while still reporting a position every frame. Measured on the synthesized
-# reference, 2048 samples (128ms) is the peak: shorter loses the bass,
-# longer smears across onsets and blurs exactly when the music moved on.
-ANALYSIS_WINDOW_SAMPLES = 2048
 
 
 def _spectrum(frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -308,46 +285,15 @@ class SalienceTemplateTracker(BaseTracker):
 
     name = "salience-template"
 
-    NUM_HARMONICS = 5
-    # Harmonic weights fall off, matching how overtone energy decays -- and
-    # limiting how much a harmonic of a lower note can masquerade as a
-    # fundamental an octave up.
-    HARMONIC_WEIGHTS = (1.0, 0.5, 0.33, 0.25, 0.2)
-
     def __init__(self, timeline: list[TimelineOnset], config: TrackerConfig | None = None):
         super().__init__(timeline, config)
         self._templates = np.array([_salience_template(timeline, i) for i in range(len(timeline))])
-        self._bin_cache: list[list[np.ndarray]] | None = None
-
-    def _harmonic_bins(self, freqs: np.ndarray) -> list[list[np.ndarray]]:
-        # Bin indices per (pitch, harmonic) depend only on the FFT size, so
-        # compute them once and reuse across frames.
-        bins: list[list[np.ndarray]] = []
-        for midi in range(MIN_MIDI, MAX_MIDI + 1):
-            hz = midi_to_hz(midi)
-            per_harmonic = []
-            for harmonic in range(1, self.NUM_HARMONICS + 1):
-                target = hz * harmonic
-                low, high = target * 0.98, target * 1.02
-                per_harmonic.append(np.nonzero((freqs >= low) & (freqs <= high))[0])
-            bins.append(per_harmonic)
-        return bins
+        # One shared audio front-end (note_estimation.py) rather than a
+        # second copy of the same spectral analysis living here.
+        self._estimator = HarmonicSalienceEstimator()
 
     def _salience(self, frame: np.ndarray) -> np.ndarray:
-        magnitude, freqs = _spectrum(frame)
-        if self._bin_cache is None:
-            self._bin_cache = self._harmonic_bins(freqs)  # type: ignore[assignment]
-
-        vector = np.zeros(MAX_MIDI - MIN_MIDI + 1)
-        for offset, per_harmonic in enumerate(self._bin_cache):  # type: ignore[arg-type]
-            total = 0.0
-            for weight, indices in zip(self.HARMONIC_WEIGHTS, per_harmonic):
-                if indices.size:
-                    total += weight * float(magnitude[indices].max())
-            vector[offset] = total
-
-        norm = np.linalg.norm(vector)
-        return vector / norm if norm > 0 else vector
+        return self._estimator.estimate(frame)
 
     def observe(self, frame: np.ndarray) -> int:
         if _is_silent(frame):
@@ -433,7 +379,7 @@ class HmmSalienceTracker(SalienceTemplateTracker):
             self._init_state(frame_seconds)
         assert self._log_delta is not None and self._expected_frames is not None
 
-        observed = self._salience(self._analysis_window(frame))
+        observed = self._salience(frame)
         if not observed.any():
             return self.position
 
@@ -461,14 +407,47 @@ class HmmSalienceTracker(SalienceTemplateTracker):
         return self.position
 
 
+# --------------------------------------------------------------------------
+# Method 5: Markov / Bayes-filter belief over positions
+# --------------------------------------------------------------------------
+
+
+class MarkovFilterTracker(BaseTracker):
+    """Adapter exposing position_markov.MarkovPositionTracker here, so the
+    same benchmark compares it against the others.
+
+    Unlike every method above it keeps a distribution over all positions
+    rather than one guess, which is what lets it start from a uniform prior
+    (the performance may begin anywhere) and report calibrated confidence.
+    See position_markov.py; use that class directly when the confidence and
+    candidate list are wanted, since this adapter discards them.
+    """
+
+    name = "markov-filter"
+
+    def __init__(self, timeline: list[TimelineOnset], config: TrackerConfig | None = None):
+        super().__init__(timeline, config)
+        from app.services.position_markov import MarkovPositionTracker
+
+        self._inner = MarkovPositionTracker(timeline)
+
+    def observe(self, frame: np.ndarray) -> int:
+        self.position = self._inner.observe(frame).index
+        return self.position
+
+
 METHODS: dict[str, type[BaseTracker]] = {
     MelodyPitchTracker.name: MelodyPitchTracker,
     ChromaTemplateTracker.name: ChromaTemplateTracker,
     SalienceTemplateTracker.name: SalienceTemplateTracker,
     HmmSalienceTracker.name: HmmSalienceTracker,
+    MarkovFilterTracker.name: MarkovFilterTracker,
 }
 
-DEFAULT_METHOD = HmmSalienceTracker.name
+# The Markov filter is the default: it matches the Viterbi tracker's
+# accuracy on continuous playback, and unlike it can start anywhere in the
+# score and say how sure it is.
+DEFAULT_METHOD = MarkovFilterTracker.name
 
 
 def build_tracker(method: str, timeline: list[TimelineOnset], config: TrackerConfig | None = None) -> BaseTracker:
