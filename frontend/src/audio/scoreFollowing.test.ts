@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupBoundingBoxesIntoLines } from './scoreFollowing'
+import { computeLineBands, groupBoundingBoxesIntoLines } from './scoreFollowing'
 import type { NoteBoundingBox } from '../lib/types'
 
 function box(overrides: Partial<NoteBoundingBox>): NoteBoundingBox {
@@ -39,5 +39,38 @@ describe('groupBoundingBoxesIntoLines', () => {
 
     expect(lines).toHaveLength(2)
     expect(lines.map((l) => l.pageIndex)).toEqual([0, 1])
+  })
+})
+
+describe('computeLineBands', () => {
+  const pageHeight = 3000
+
+  it('makes each highlight band about a row-gap tall, so it spans a grand staff', () => {
+    // Three thin rows (one staff each) 200px apart -- a highlight sized to
+    // the noteheads alone would only cover one clef.
+    const lines = groupBoundingBoxesIntoLines(
+      [
+        box({ y: 500, x: 0 }),
+        box({ y: 510, x: 20 }),
+        box({ y: 700, x: 0 }),
+        box({ y: 900, x: 0 }),
+      ],
+      { 0: pageHeight },
+    )
+    const bands = computeLineBands(lines, { 0: pageHeight })
+
+    const middle = bands.get('0-1')!
+    expect(middle.height).toBeGreaterThan(180)
+    expect(middle.height).toBeLessThanOrEqual(pageHeight * 0.11)
+    // Centered on the row (~700), it reaches into both neighbours.
+    expect(middle.top).toBeLessThan(700)
+    expect(middle.top + middle.height).toBeGreaterThan(700)
+  })
+
+  it('never exceeds 11% of the page height', () => {
+    const lines = groupBoundingBoxesIntoLines([box({ y: 100 }), box({ y: 2900 })], { 0: pageHeight })
+    for (const band of computeLineBands(lines, { 0: pageHeight }).values()) {
+      expect(band.height).toBeLessThanOrEqual(pageHeight * 0.11 + 1e-6)
+    }
   })
 })

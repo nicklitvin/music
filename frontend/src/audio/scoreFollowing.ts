@@ -61,3 +61,52 @@ export function groupBoundingBoxesIntoLines(
 
   return lines
 }
+
+export interface LineBand {
+  top: number
+  height: number
+}
+
+// The vertical strip to highlight for each line. A row of OMR noteheads is
+// often only one staff tall, but a piano system is a grand staff (treble +
+// bass), so a strip sized to the boxes alone marks just one clef. Instead
+// each band is sized to the local row-to-row spacing (clamped), which
+// covers the whole system the line sits in without bleeding far into its
+// neighbours. Keyed by `${pageIndex}-${lineIndex}`.
+export function computeLineBands(
+  lines: ScoreLine[],
+  pageHeights: Record<number, number>,
+): Map<string, LineBand> {
+  const byPage = new Map<number, ScoreLine[]>()
+  for (const line of lines) {
+    const list = byPage.get(line.pageIndex) ?? []
+    list.push(line)
+    byPage.set(line.pageIndex, list)
+  }
+
+  const bands = new Map<string, LineBand>()
+  for (const [pageIndex, pageLines] of byPage) {
+    const pageHeight = pageHeights[pageIndex] ?? 1000
+    const rows = [...pageLines]
+      .map((line) => {
+        const top = Math.min(...line.boxes.map((b) => b.y))
+        const bottom = Math.max(...line.boxes.map((b) => b.y + b.height))
+        return { line, top, bottom, mid: (top + bottom) / 2 }
+      })
+      .sort((a, b) => a.mid - b.mid)
+
+    rows.forEach((row, i) => {
+      const gaps: number[] = []
+      if (rows[i - 1]) gaps.push(row.mid - rows[i - 1].mid)
+      if (rows[i + 1]) gaps.push(rows[i + 1].mid - row.mid)
+      const rowGap = gaps.length ? Math.min(...gaps) : pageHeight * 0.06
+
+      const height = Math.min(
+        Math.max(rowGap * 1.15, pageHeight * 0.05, row.bottom - row.top + 24),
+        pageHeight * 0.11,
+      )
+      bands.set(`${pageIndex}-${row.line.lineIndex}`, { top: row.mid - height / 2, height })
+    })
+  }
+  return bands
+}

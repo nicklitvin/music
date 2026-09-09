@@ -4,8 +4,8 @@ import { getScore, saveScore } from '../../lib/db'
 import { reprocessScore } from '../../lib/api'
 import type { NoteBoundingBox, ScorePositionEvent, ScoreRecord, TrackingEvent } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
-import { groupBoundingBoxesIntoLines, type ScoreLine } from '../../audio/scoreFollowing'
-import { buildOnsets } from '../../audio/positionTracking'
+import { computeLineBands, groupBoundingBoxesIntoLines, type ScoreLine } from '../../audio/scoreFollowing'
+import { buildOnsets, nearestOnset } from '../../audio/positionTracking'
 
 const MAX_LOG_ENTRIES = 200
 
@@ -15,6 +15,12 @@ const SCROLL_SETTLE_MS = 250
 // How long our own smooth auto-scroll is expected to still be moving.
 // Scroll events inside this window are ours, not the reader's.
 const AUTO_SCROLL_SETTLE_MS = 800
+// The active line only re-scrolls into view when it drifts outside this
+// vertical band of the viewport. Inside it, the highlight moves but the
+// page stays put -- what made following feel jumpy was re-centering on
+// every small step.
+const COMFORT_TOP = 0.2
+const COMFORT_BOTTOM = 0.75
 
 type LogEntry = TrackingEvent & { receivedAt: number }
 
@@ -64,11 +70,20 @@ export function ScoreViewer() {
     }
   }, [pageUrls])
 
+  const pageHeights = useMemo(
+    () => Object.fromEntries((score?.pages ?? []).map((page) => [page.pageIndex, page.height])),
+    [score],
+  )
+
   const lines = useMemo(() => {
     if (!score) return []
-    const pageHeights = Object.fromEntries(score.pages.map((page) => [page.pageIndex, page.height]))
     return groupBoundingBoxesIntoLines(score.boundingBoxes, pageHeights)
-  }, [score])
+  }, [score, pageHeights])
+
+  // The vertical strip to highlight per line -- sized to cover the whole
+  // grand staff (treble + bass), not just the row of noteheads that
+  // matched.
+  const lineBands = useMemo(() => computeLineBands(lines, pageHeights), [lines, pageHeights])
 
   // The same onset grouping the backend tracker indexes into, so its
   // reported onsetIndex can be mapped back to a line here.
@@ -82,7 +97,7 @@ export function ScoreViewer() {
     return map
   }, [lines])
 
-  // First onset index that falls on each line -- where a manual scroll to
+  // First onset index that falls on each line -- where a scroll or click to
   // that line hints the tracker.
   const lineFirstOnset = useMemo(() => {
     const map = new Map<string, number>()
@@ -93,17 +108,23 @@ export function ScoreViewer() {
     return map
   }, [onsets, boxLineKey])
 
-  const goToLine = useCallback((key: string) => {
-    setActiveLineKey(key)
-    // Our own scroll, not the reader's -- mark it so the scroll listener
-    // does not read it back as a manual correction and hint the tracker
-    // toward the position it just chose.
+  const scrollLineIntoView = useCallback((key: string) => {
+    const anchor = lineAnchorsRef.current.get(key)
+    if (!anchor) return
+    const { top } = anchor.getBoundingClientRect()
+    const fraction = top / window.innerHeight
+    if (fraction >= COMFORT_TOP && fraction <= COMFORT_BOTTOM) return // already comfortably visible
     autoScrollUntilRef.current = performance.now() + AUTO_SCROLL_SETTLE_MS
-    // Keep the newly-detected line comfortably in view -- centered, so it
-    // is never pinned at the bottom edge of the viewport as the score
-    // scrolls along with playback.
-    lineAnchorsRef.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    anchor.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
+
+  const goToLine = useCallback(
+    (key: string) => {
+      setActiveLineKey(key)
+      scrollLineIntoView(key)
+    },
+    [scrollLineIntoView],
+  )
 
   const handleTracking = useCallback((event: TrackingEvent) => {
     setActiveNotes(event.notes)
@@ -128,11 +149,10 @@ export function ScoreViewer() {
   })
 
   // A manual scroll says the reader is looking somewhere else, and is
-  // usually a correction -- they scrolled because the highlight was wrong.
-  // Find whichever line is nearest the middle of the viewport and hand the
-  // backend tracker that as a hint.
+  // usually a correction. Nudge the backend tracker toward whichever line
+  // is nearest the middle of the viewport.
   const handleManualScroll = useCallback(() => {
-    if (performance.now() < autoScrollUntilRef.current) return
+    if (!isTracking || performance.now() < autoScrollUntilRef.current) return
 
     const viewportMiddle = window.innerHeight / 2
     let nearest: { key: string; distance: number } | null = null
@@ -145,15 +165,12 @@ export function ScoreViewer() {
     const onsetIndex = lineFirstOnset.get(nearest.key)
     if (onsetIndex !== undefined) sendHint(onsetIndex)
     setActiveLineKey(nearest.key)
-  }, [lineFirstOnset, sendHint])
+  }, [isTracking, lineFirstOnset, sendHint])
 
   useEffect(() => {
     if (!isTracking) return
     let timer: number | undefined
     const onScroll = () => {
-      // Wait for scrolling to stop: hinting on every intermediate event of
-      // a long scroll would drag the tracker across everything passed on
-      // the way to where the reader was actually heading.
       window.clearTimeout(timer)
       timer = window.setTimeout(handleManualScroll, SCROLL_SETTLE_MS)
     }
@@ -164,11 +181,33 @@ export function ScoreViewer() {
     }
   }, [isTracking, handleManualScroll])
 
+  // Clicking a spot on the sheet is a firm statement: "I am exactly here."
+  const handlePageClick = useCallback(
+    (pageIndex: number) => (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isTracking) return
+      const page = score?.pages.find((p) => p.pageIndex === pageIndex)
+      if (!page) return
+      const rect = event.currentTarget.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * page.width
+      const y = ((event.clientY - rect.top) / rect.height) * page.height
+
+      const onsetIndex = nearestOnset(onsets, pageIndex, x, y)
+      if (onsetIndex < 0) return
+      sendHint(onsetIndex, { firm: true })
+      const key = boxLineKey.get(onsets[onsetIndex][0])
+      if (key) setActiveLineKey(key)
+    },
+    [isTracking, score, onsets, boxLineKey, sendHint],
+  )
+
   const handleStart = useCallback(() => {
     setLogs([])
-    setActiveLineKey(null)
+    // Starting tracking means "I am at the top of the score" -- show that
+    // straight away, and let the backend seed its belief there too.
+    setActiveLineKey(lines[0] ? lineKey(lines[0]) : null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     start()
-  }, [start])
+  }, [start, lines])
 
   const handleDownloadLogs = useCallback(() => {
     downloadJson(`${slugify(score?.title ?? 'score')}-detection-log.json`, logs)
@@ -221,14 +260,22 @@ export function ScoreViewer() {
         {reprocessError && <span role="alert" className="viewer-alert">{reprocessError}</span>}
       </header>
 
-      <div className="active-notes">Detected: {activeNotes.join(', ') || '—'}</div>
+      <div className="active-notes">
+        Detected: {activeNotes.join(', ') || '—'}
+        {isTracking && <span className="viewer-hint"> · click the sheet where you are to correct it</span>}
+      </div>
 
       <div className="viewer-body">
         <div className="pages">
           {score.pages.map((page, pageIndex) => {
             const pageLines = lines.filter((line) => line.pageIndex === page.pageIndex)
             return (
-              <div key={page.pageIndex} className="page" style={{ position: 'relative' }}>
+              <div
+                key={page.pageIndex}
+                className={`page${isTracking ? ' page-clickable' : ''}`}
+                style={{ position: 'relative' }}
+                onClick={handlePageClick(page.pageIndex)}
+              >
                 <img src={pageUrls[pageIndex]} alt={`Page ${page.pageIndex + 1}`} width={page.width} height={page.height} />
                 <svg
                   className="overlay"
@@ -238,33 +285,38 @@ export function ScoreViewer() {
                   {pageLines
                     .filter((line) => lineKey(line) === activeLineKey)
                     .map((line) => {
-                      const minY = Math.min(...line.boxes.map((b) => b.y))
-                      const maxY = Math.max(...line.boxes.map((b) => b.y + b.height))
-                      const padding = (maxY - minY) * 0.5 || 8
+                      const band = lineBands.get(lineKey(line))
+                      if (!band) return null
                       return (
                         <rect
                           key={lineKey(line)}
                           x={0}
-                          y={minY - padding}
+                          y={band.top}
                           width={page.width}
-                          height={maxY - minY + padding * 2}
-                          fill="rgba(90, 140, 255, 0.18)"
-                          stroke="rgba(90, 140, 255, 0.5)"
+                          height={band.height}
+                          fill="rgba(90, 140, 255, 0.16)"
+                          stroke="rgba(90, 140, 255, 0.55)"
                           strokeWidth={2}
                         />
                       )
                     })}
                 </svg>
-                {pageLines.map((line) => (
-                  <div
-                    key={lineKey(line)}
-                    ref={(el) => {
-                      if (el) lineAnchorsRef.current.set(lineKey(line), el)
-                      else lineAnchorsRef.current.delete(lineKey(line))
-                    }}
-                    style={{ position: 'absolute', left: 0, top: `${(line.y / page.height) * 100}%`, width: 1, height: 1 }}
-                  />
-                ))}
+                {pageLines.map((line) => {
+                  const band = lineBands.get(lineKey(line))
+                  const centerFraction = band
+                    ? (band.top + band.height / 2) / page.height
+                    : line.y / page.height
+                  return (
+                    <div
+                      key={lineKey(line)}
+                      ref={(el) => {
+                        if (el) lineAnchorsRef.current.set(lineKey(line), el)
+                        else lineAnchorsRef.current.delete(lineKey(line))
+                      }}
+                      style={{ position: 'absolute', left: 0, top: `${centerFraction * 100}%`, width: 1, height: 1 }}
+                    />
+                  )
+                })}
               </div>
             )
           })}

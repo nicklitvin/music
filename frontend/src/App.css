@@ -136,6 +136,15 @@ button:not(.btn) {
   text-align: left;
 }
 
+.viewer-hint {
+  font-family: var(--sans);
+  opacity: 0.7;
+}
+
+.page-clickable {
+  cursor: pointer;
+}
+
 .viewer-body {
   display: flex;
   align-items: flex-start;

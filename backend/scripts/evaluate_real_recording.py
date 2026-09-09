@@ -44,6 +44,8 @@ from app.services.position_tracking import (  # noqa: E402
     build_tracker,
     sounding_weights,
 )
+from app.services.position_markov import MarkovPositionTracker  # noqa: E402
+from app.routers.audio_ws import LIVE_CONFIG, ReportedPosition  # noqa: E402
 from app.services.score_timeline import TimelineOnset  # noqa: E402
 
 RATE = 16000
@@ -229,6 +231,51 @@ def report_tracking(audio, frames, truth_index, timeline, end_sample) -> None:
               f"{100 * np.mean(a <= 2):>7.1f}%{100 * np.mean(a <= 3):>7.1f}%{a.mean():>9.2f}")
 
 
+def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample):
+    """Feed the live path (seed@0 Markov + rate limiter) frames from
+    begin_sample on. Returns (positions, jump_sizes, errors, lock_seconds)."""
+    tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
+    tracker.apply_hint(0, strength=0.9, width=3.0)
+    reported = ReportedPosition(index=0)
+    positions, jumps, errors = [], [], []
+    prev, run, lock = 0, 0, None
+    for (_, rms, s), ti in zip(frames, truth_index):
+        if s < begin_sample or s > end_sample:
+            continue
+        pos = reported.update(tracker.observe(audio[s : s + HOP]).index)
+        if positions:
+            jumps.append(abs(pos - prev))
+        if rms >= SILENCE_RMS_THRESHOLD:
+            errors.append(abs(pos - ti))
+        if lock is None and abs(pos - ti) <= 3:
+            run += 1
+            if run >= 8:
+                lock = (s - begin_sample) / RATE
+        elif lock is None:
+            run = 0
+        positions.append(pos)
+        prev = pos
+    return positions, np.array(jumps), np.array(errors), lock
+
+
+def report_live_playthrough(audio, frames, truth_index, timeline, end_sample) -> None:
+    """The actual live path: LIVE_CONFIG Markov tracker, belief seeded at
+    onset 0, reported position rate-limited (app.routers.audio_ws). This is
+    what the highlight follows."""
+    positions, jumps, errors, _ = _live_run(audio, frames, truth_index, timeline, end_sample, 0)
+    print("\nlive path (seed@0 + rate limiter) -- full page-1 playthrough")
+    print(f"  final onset {positions[-1]}/{len(timeline) - 1}   "
+          f"largest single-frame move {int(jumps.max())}   moves >3 onsets: {int((jumps > 3).sum())}")
+    print(f"  MAE {errors.mean():.1f}   within +/-3: {100 * np.mean(errors <= 3):.0f}%   max error {int(errors.max())}")
+
+    print("\nlive path -- cold start from a point in the first 60s (belief still seeded at 0)")
+    print(f"  {'from':>6}  {'locks after':>12}  {'max move after that':>20}")
+    for offset_s in range(0, 60, 10):
+        pos, jmp, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, offset_s * RATE)
+        after = int(jmp[max(0, int(lock / 0.075)) :].max()) if lock is not None and len(jmp) else 0
+        print(f"  {offset_s:>4}s  {('never' if lock is None else f'{lock:.1f}s'):>12}  {after:>20}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("wav", type=Path)
@@ -258,6 +305,7 @@ def main() -> None:
 
     report_detection(frames, truth_index, timeline, end_sample)
     report_tracking(audio, frames, truth_index, timeline, end_sample)
+    report_live_playthrough(audio, frames, truth_index, timeline, end_sample)
 
 
 if __name__ == "__main__":

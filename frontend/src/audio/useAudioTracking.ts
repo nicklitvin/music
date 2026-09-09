@@ -103,12 +103,13 @@ export function useAudioTracking({
     setIsTracking(false)
   }, [])
 
-  // Tell the backend the reader has moved to a given onset by hand -- a
-  // correction folded into its belief, not a hard jump.
-  const sendHint = useCallback((onsetIndex: number) => {
+  // Tell the backend the reader has moved to a given onset by hand. A
+  // scroll is a soft nudge; a click on the sheet ("I am exactly here") is
+  // firm. Either way it is folded into the tracker's belief.
+  const sendHint = useCallback((onsetIndex: number, options: { firm?: boolean } = {}) => {
     const socket = socketRef.current
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'HINT', onsetIndex }))
+      socket.send(JSON.stringify({ type: 'HINT', onsetIndex, firm: options.firm ?? false }))
     }
   }, [])
 
