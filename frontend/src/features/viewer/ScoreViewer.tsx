@@ -253,23 +253,12 @@ export function ScoreViewer() {
                           y={minY - padding}
                           width={page.width}
                           height={maxY - minY + padding * 2}
-                          fill="rgba(90, 140, 255, 0.12)"
+                          fill="rgba(90, 140, 255, 0.18)"
+                          stroke="rgba(90, 140, 255, 0.5)"
+                          strokeWidth={2}
                         />
                       )
                     })}
-                  {score.boundingBoxes
-                    .filter((box) => box.pageIndex === page.pageIndex)
-                    .map((box, i) => (
-                      <rect
-                        key={i}
-                        x={box.x}
-                        y={box.y}
-                        width={box.width}
-                        height={box.height}
-                        fill={activeNotes.includes(box.pitch) ? 'rgba(76, 217, 100, 0.5)' : 'transparent'}
-                        stroke={activeNotes.includes(box.pitch) ? 'seagreen' : 'none'}
-                      />
-                    ))}
                 </svg>
                 {pageLines.map((line) => (
                   <div
