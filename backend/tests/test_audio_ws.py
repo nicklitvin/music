@@ -1,3 +1,4 @@
+import json
 import math
 import struct
 
@@ -7,6 +8,7 @@ SAMPLE_RATE = 16000
 C4 = 261.63
 E4 = 329.63
 G4 = 392.00
+E5 = 659.26
 
 
 def _sine_pcm16(freq_hz: float, num_samples: int, amplitude: int = 16000) -> bytes:
@@ -84,3 +86,53 @@ def test_ws_reports_empty_notes_for_quiet_audio(client):
     assert silent_message["notes"] == []
     assert silent_message["confidence"] == 0.0
     assert loud_message["notes"] == ["C4"]
+
+
+def _box(pitch: str, x: float) -> dict:
+    return {
+        "x": x, "y": 0.0, "width": 10.0, "height": 10.0,
+        "note": "quarter", "pitch": pitch, "measureIndex": 1, "pageIndex": 0,
+    }
+
+
+# A three-onset score whose middle onset is the only high note, so a
+# sustained E5 is unambiguous evidence for position 1.
+SCORE_NOTES = [_box("C4", 100.0), _box("E5", 150.0), _box("C4", 200.0)]
+
+
+def test_ws_tracks_score_position_after_init(client):
+    with client.websocket_connect("/ws/track-audio") as websocket:
+        websocket.send_text(json.dumps({"type": "INIT", "notes": SCORE_NOTES}))
+
+        message = None
+        for _ in range(20):
+            websocket.send_bytes(_harmonic_rich_pcm16(E5, 4096))
+            message = websocket.receive_json()
+
+    assert message["type"] == "POSITION"
+    assert message["onsetIndex"] == 1
+    assert 0.0 <= message["positionConfidence"] <= 1.0
+    # POSITION frames still carry the raw detection fields the log uses.
+    assert "notes" in message and "rms" in message
+
+
+def test_ws_without_init_still_reports_plain_note_detection(client):
+    with client.websocket_connect("/ws/track-audio") as websocket:
+        websocket.send_bytes(_sine_pcm16(C4, 4096))
+        message = websocket.receive_json()
+
+    assert message["type"] == "NOTE_DETECTION"
+    assert "onsetIndex" not in message
+
+
+def test_ws_accepts_a_position_hint(client):
+    with client.websocket_connect("/ws/track-audio") as websocket:
+        websocket.send_text(json.dumps({"type": "INIT", "notes": SCORE_NOTES}))
+        websocket.send_text(json.dumps({"type": "HINT", "onsetIndex": 2}))
+
+        websocket.send_bytes(_sine_pcm16(C4, 4096))
+        message = websocket.receive_json()
+
+    assert message["type"] == "POSITION"
+    # The hint put the belief on the last C4 rather than the first.
+    assert message["onsetIndex"] == 2

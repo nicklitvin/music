@@ -49,3 +49,13 @@ export interface NoteDetectionEvent {
   rms: number
   timestamp: number
 }
+
+// A NOTE_DETECTION plus the score position the backend's tracker inferred
+// from it. Sent once the socket has been INIT'd with a score's notes.
+export interface ScorePositionEvent extends Omit<NoteDetectionEvent, 'type'> {
+  type: 'POSITION'
+  onsetIndex: number
+  positionConfidence: number
+}
+
+export type TrackingEvent = NoteDetectionEvent | ScorePositionEvent

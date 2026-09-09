@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getScore, saveScore } from '../../lib/db'
 import { reprocessScore } from '../../lib/api'
-import type { NoteBoundingBox, NoteDetectionEvent, ScoreRecord } from '../../lib/types'
+import type { NoteBoundingBox, ScorePositionEvent, ScoreRecord, TrackingEvent } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
-import { groupBoundingBoxesIntoLines, LineTracker, type ScoreLine } from '../../audio/scoreFollowing'
-import { MelodyTracker } from '../../audio/melodyTracking'
-
-type TrackingMode = 'melody' | 'line'
+import { groupBoundingBoxesIntoLines, type ScoreLine } from '../../audio/scoreFollowing'
+import { buildOnsets } from '../../audio/positionTracking'
 
 const MAX_LOG_ENTRIES = 200
 
@@ -18,9 +16,7 @@ const SCROLL_SETTLE_MS = 250
 // Scroll events inside this window are ours, not the reader's.
 const AUTO_SCROLL_SETTLE_MS = 800
 
-interface LogEntry extends NoteDetectionEvent {
-  receivedAt: number
-}
+type LogEntry = TrackingEvent & { receivedAt: number }
 
 function lineKey(line: Pick<ScoreLine, 'pageIndex' | 'lineIndex'>): string {
   return `${line.pageIndex}-${line.lineIndex}`
@@ -49,10 +45,7 @@ export function ScoreViewer() {
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null)
   const [isReprocessing, setIsReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState<string | null>(null)
-  const [trackingMode, setTrackingMode] = useState<TrackingMode>('melody')
 
-  const lineTrackerRef = useRef<LineTracker | null>(null)
-  const melodyTrackerRef = useRef<MelodyTracker | null>(null)
   const lineAnchorsRef = useRef(new Map<string, HTMLDivElement>())
   const autoScrollUntilRef = useRef(0)
 
@@ -77,8 +70,10 @@ export function ScoreViewer() {
     return groupBoundingBoxesIntoLines(score.boundingBoxes, pageHeights)
   }, [score])
 
-  // Lets the melody tracker's single-note results reuse the line-based
-  // highlight/scroll anchors, by finding which line a given note belongs to.
+  // The same onset grouping the backend tracker indexes into, so its
+  // reported onsetIndex can be mapped back to a line here.
+  const onsets = useMemo(() => (score ? buildOnsets(score.boundingBoxes) : []), [score])
+
   const boxLineKey = useMemo(() => {
     const map = new Map<NoteBoundingBox, string>()
     for (const line of lines) {
@@ -87,11 +82,22 @@ export function ScoreViewer() {
     return map
   }, [lines])
 
+  // First onset index that falls on each line -- where a manual scroll to
+  // that line hints the tracker.
+  const lineFirstOnset = useMemo(() => {
+    const map = new Map<string, number>()
+    onsets.forEach((onset, index) => {
+      const key = boxLineKey.get(onset[0])
+      if (key !== undefined && !map.has(key)) map.set(key, index)
+    })
+    return map
+  }, [onsets, boxLineKey])
+
   const goToLine = useCallback((key: string) => {
     setActiveLineKey(key)
     // Our own scroll, not the reader's -- mark it so the scroll listener
     // does not read it back as a manual correction and hint the tracker
-    // toward the position the tracker itself just chose.
+    // toward the position it just chose.
     autoScrollUntilRef.current = performance.now() + AUTO_SCROLL_SETTLE_MS
     // Keep the newly-detected line comfortably in view -- centered, so it
     // is never pinned at the bottom edge of the viewport as the score
@@ -99,32 +105,32 @@ export function ScoreViewer() {
     lineAnchorsRef.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
+  const handleTracking = useCallback((event: TrackingEvent) => {
+    setActiveNotes(event.notes)
+    if (event.notes.length > 0) {
+      setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+    }
+  }, [])
 
-  const handleNoteDetection = useCallback(
-    (event: NoteDetectionEvent) => {
-      setActiveNotes(event.notes)
-      if (event.notes.length > 0) {
-        setLogs((prev) => [{ ...event, receivedAt: performance.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
-      }
-
-      if (trackingMode === 'line') {
-        const newLine = lineTrackerRef.current?.observe(event.notes)
-        if (newLine) goToLine(lineKey(newLine))
-      } else {
-        const newNote = melodyTrackerRef.current?.observe(event.notes)
-        const key = newNote && boxLineKey.get(newNote)
-        if (key) goToLine(key)
-      }
+  const handlePosition = useCallback(
+    (event: ScorePositionEvent) => {
+      const box = onsets[event.onsetIndex]?.[0]
+      const key = box && boxLineKey.get(box)
+      if (key) goToLine(key)
     },
-    [trackingMode, boxLineKey, goToLine],
+    [onsets, boxLineKey, goToLine],
   )
 
-  const { isTracking, error, start, stop } = useAudioTracking({ onNoteDetection: handleNoteDetection })
+  const { isTracking, error, start, stop, sendHint } = useAudioTracking({
+    onTracking: handleTracking,
+    onPosition: handlePosition,
+    scoreNotes: score?.boundingBoxes,
+  })
 
   // A manual scroll says the reader is looking somewhere else, and is
   // usually a correction -- they scrolled because the highlight was wrong.
-  // Find whichever line is nearest the middle of the viewport and move the
-  // active tracker there.
+  // Find whichever line is nearest the middle of the viewport and hand the
+  // backend tracker that as a hint.
   const handleManualScroll = useCallback(() => {
     if (performance.now() < autoScrollUntilRef.current) return
 
@@ -136,14 +142,10 @@ export function ScoreViewer() {
     }
     if (!nearest) return
 
-    const target = nearest.key
-    const line = lines.find((candidate) => lineKey(candidate) === target)
-    if (!line) return
-
-    lineTrackerRef.current?.hintPosition(line)
-    if (line.boxes.length > 0) melodyTrackerRef.current?.hintPosition(line.boxes[0])
-    setActiveLineKey(target)
-  }, [lines])
+    const onsetIndex = lineFirstOnset.get(nearest.key)
+    if (onsetIndex !== undefined) sendHint(onsetIndex)
+    setActiveLineKey(nearest.key)
+  }, [lineFirstOnset, sendHint])
 
   useEffect(() => {
     if (!isTracking) return
@@ -165,10 +167,8 @@ export function ScoreViewer() {
   const handleStart = useCallback(() => {
     setLogs([])
     setActiveLineKey(null)
-    lineTrackerRef.current = trackingMode === 'line' ? new LineTracker(lines) : null
-    melodyTrackerRef.current = trackingMode === 'melody' ? new MelodyTracker(score?.boundingBoxes ?? []) : null
     start()
-  }, [start, lines, score, trackingMode])
+  }, [start])
 
   const handleDownloadLogs = useCallback(() => {
     downloadJson(`${slugify(score?.title ?? 'score')}-detection-log.json`, logs)
@@ -203,27 +203,22 @@ export function ScoreViewer() {
         <h1>{score.title}</h1>
         <div className="viewer-header-actions">
           <button
+            className="btn btn-ghost"
             onClick={handleReprocess}
             disabled={isReprocessing || !score.sourcePdf}
             title={score.sourcePdf ? 'Re-run note parsing on the original PDF' : 'No stored PDF to reprocess (uploaded before this feature existed)'}
           >
             {isReprocessing ? 'Reprocessing…' : 'Reprocess score'}
           </button>
-          <select
-            value={trackingMode}
-            onChange={(e) => setTrackingMode(e.target.value as TrackingMode)}
-            disabled={isTracking}
-            title="How position on the sheet is tracked from the detected audio"
+          <button
+            className={`btn btn-primary${isTracking ? ' is-tracking' : ''}`}
+            onClick={isTracking ? stop : handleStart}
           >
-            <option value="melody">Melody (highest note)</option>
-            <option value="line">Line matching (chords)</option>
-          </select>
-          <button onClick={isTracking ? stop : handleStart}>
-            {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+            {isTracking ? 'Stop tracking' : 'Start tracking'}
           </button>
         </div>
-        {error && <span role="alert">{error}</span>}
-        {reprocessError && <span role="alert">{reprocessError}</span>}
+        {error && <span role="alert" className="viewer-alert">{error}</span>}
+        {reprocessError && <span role="alert" className="viewer-alert">{reprocessError}</span>}
       </header>
 
       <div className="active-notes">Detected: {activeNotes.join(', ') || '—'}</div>
@@ -280,10 +275,10 @@ export function ScoreViewer() {
             <div className="tracking-log-header">
               <h2>Detection log</h2>
               <div className="tracking-log-actions">
-                <button onClick={handleDownloadLogs} disabled={logs.length === 0}>
+                <button className="btn btn-ghost btn-sm" onClick={handleDownloadLogs} disabled={logs.length === 0}>
                   Download log
                 </button>
-                <button onClick={handleDownloadNotes}>Download notes</button>
+                <button className="btn btn-ghost btn-sm" onClick={handleDownloadNotes}>Download notes</button>
               </div>
             </div>
             <ul>
