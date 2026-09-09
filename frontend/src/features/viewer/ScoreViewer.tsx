@@ -4,7 +4,7 @@ import { getScore, saveScore } from '../../lib/db'
 import { reprocessScore } from '../../lib/api'
 import type { NoteBoundingBox, ScorePositionEvent, ScoreRecord, TrackingEvent } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
-import { computeLineBands, groupBoundingBoxesIntoLines, type ScoreLine } from '../../audio/scoreFollowing'
+import { groupBoundingBoxesIntoLines, groupLinesIntoSystems } from '../../audio/scoreFollowing'
 import { buildOnsets, nearestOnset } from '../../audio/positionTracking'
 
 const MAX_LOG_ENTRIES = 200
@@ -12,21 +12,19 @@ const MAX_LOG_ENTRIES = 200
 // How long after a scroll stops before it counts as the reader settling
 // somewhere, rather than still on their way there.
 const SCROLL_SETTLE_MS = 250
-// How long our own smooth auto-scroll is expected to still be moving.
-// Scroll events inside this window are ours, not the reader's.
-const AUTO_SCROLL_SETTLE_MS = 800
-// The active line only re-scrolls into view when it drifts outside this
-// vertical band of the viewport. Inside it, the highlight moves but the
-// page stays put -- what made following feel jumpy was re-centering on
-// every small step.
-const COMFORT_TOP = 0.2
-const COMFORT_BOTTOM = 0.75
+// A smooth scroll we started can still be moving well after it began;
+// scroll events inside this window are ours, not the reader's.
+const AUTO_SCROLL_SETTLE_MS = 1500
+// The highlight only moves once the tracker has reported a different
+// system on this many consecutive frames -- one stray frame can't twitch
+// it to a neighbour.
+const SYSTEM_CHANGE_FRAMES = 2
+// The active system only re-scrolls into view when it sits outside this
+// vertical band of the viewport. Inside it, nothing scrolls.
+const COMFORT_TOP = 0.18
+const COMFORT_BOTTOM = 0.72
 
 type LogEntry = TrackingEvent & { receivedAt: number }
-
-function lineKey(line: Pick<ScoreLine, 'pageIndex' | 'lineIndex'>): string {
-  return `${line.pageIndex}-${line.lineIndex}`
-}
 
 function downloadJson(filename: string, data: unknown): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -48,12 +46,18 @@ export function ScoreViewer() {
   const [pageUrls, setPageUrls] = useState<string[]>([])
   const [activeNotes, setActiveNotes] = useState<string[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
-  const [activeLineKey, setActiveLineKey] = useState<string | null>(null)
+  const [activeSystemKey, setActiveSystemKey] = useState<string | null>(null)
   const [isReprocessing, setIsReprocessing] = useState(false)
   const [reprocessError, setReprocessError] = useState<string | null>(null)
 
-  const lineAnchorsRef = useRef(new Map<string, HTMLDivElement>())
+  const systemAnchorsRef = useRef(new Map<string, HTMLDivElement>())
   const autoScrollUntilRef = useRef(0)
+  const activeSystemKeyRef = useRef<string | null>(null)
+  const pendingSystemRef = useRef<{ key: string; count: number } | null>(null)
+
+  useEffect(() => {
+    activeSystemKeyRef.current = activeSystemKey
+  }, [activeSystemKey])
 
   useEffect(() => {
     if (!scoreId) return
@@ -75,55 +79,66 @@ export function ScoreViewer() {
     [score],
   )
 
-  const lines = useMemo(() => {
-    if (!score) return []
-    return groupBoundingBoxesIntoLines(score.boundingBoxes, pageHeights)
-  }, [score, pageHeights])
+  const lines = useMemo(
+    () => (score ? groupBoundingBoxesIntoLines(score.boundingBoxes, pageHeights) : []),
+    [score, pageHeights],
+  )
 
-  // The vertical strip to highlight per line -- sized to cover the whole
-  // grand staff (treble + bass), not just the row of noteheads that
-  // matched.
-  const lineBands = useMemo(() => computeLineBands(lines, pageHeights), [lines, pageHeights])
+  // Grand staves -- a treble line and a bass line highlighted together, so
+  // the highlight covers the whole system and doesn't flicker between the
+  // two clefs as consecutive onsets alternate between them.
+  const systems = useMemo(() => groupLinesIntoSystems(lines, pageHeights), [lines, pageHeights])
 
-  // The same onset grouping the backend tracker indexes into, so its
-  // reported onsetIndex can be mapped back to a line here.
-  const onsets = useMemo(() => (score ? buildOnsets(score.boundingBoxes) : []), [score])
-
-  const boxLineKey = useMemo(() => {
-    const map = new Map<NoteBoundingBox, string>()
-    for (const line of lines) {
-      for (const box of line.boxes) map.set(box, lineKey(line))
+  const systemKeyByLineKey = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const system of systems) {
+      const key = `${system.pageIndex}-${system.systemIndex}`
+      for (const lineIndex of system.lineIndexes) map.set(`${system.pageIndex}-${lineIndex}`, key)
     }
     return map
-  }, [lines])
+  }, [systems])
 
-  // First onset index that falls on each line -- where a scroll or click to
-  // that line hints the tracker.
-  const lineFirstOnset = useMemo(() => {
+  // The same onset grouping the backend tracker indexes into, so its
+  // reported onsetIndex can be mapped back to a system.
+  const onsets = useMemo(() => (score ? buildOnsets(score.boundingBoxes) : []), [score])
+
+  // onset index -> the key of the system it belongs to.
+  const onsetSystemKey = useMemo(() => {
+    const boxLineKey = new Map<NoteBoundingBox, string>()
+    for (const line of lines) {
+      for (const box of line.boxes) boxLineKey.set(box, `${line.pageIndex}-${line.lineIndex}`)
+    }
+    return onsets.map((onset) => {
+      const lineKey = boxLineKey.get(onset[0])
+      return lineKey ? systemKeyByLineKey.get(lineKey) : undefined
+    })
+  }, [onsets, lines, systemKeyByLineKey])
+
+  const systemFirstOnset = useMemo(() => {
     const map = new Map<string, number>()
-    onsets.forEach((onset, index) => {
-      const key = boxLineKey.get(onset[0])
+    onsetSystemKey.forEach((key, index) => {
       if (key !== undefined && !map.has(key)) map.set(key, index)
     })
     return map
-  }, [onsets, boxLineKey])
+  }, [onsetSystemKey])
 
-  const scrollLineIntoView = useCallback((key: string) => {
-    const anchor = lineAnchorsRef.current.get(key)
+  const scrollSystemIntoView = useCallback((key: string) => {
+    const anchor = systemAnchorsRef.current.get(key)
     if (!anchor) return
-    const { top } = anchor.getBoundingClientRect()
-    const fraction = top / window.innerHeight
-    if (fraction >= COMFORT_TOP && fraction <= COMFORT_BOTTOM) return // already comfortably visible
+    const fraction = anchor.getBoundingClientRect().top / window.innerHeight
+    if (fraction >= COMFORT_TOP && fraction <= COMFORT_BOTTOM) return
     autoScrollUntilRef.current = performance.now() + AUTO_SCROLL_SETTLE_MS
     anchor.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
-  const goToLine = useCallback(
+  const goToSystem = useCallback(
     (key: string) => {
-      setActiveLineKey(key)
-      scrollLineIntoView(key)
+      if (key === activeSystemKeyRef.current) return
+      activeSystemKeyRef.current = key
+      setActiveSystemKey(key)
+      scrollSystemIntoView(key)
     },
-    [scrollLineIntoView],
+    [scrollSystemIntoView],
   )
 
   const handleTracking = useCallback((event: TrackingEvent) => {
@@ -135,11 +150,24 @@ export function ScoreViewer() {
 
   const handlePosition = useCallback(
     (event: ScorePositionEvent) => {
-      const box = onsets[event.onsetIndex]?.[0]
-      const key = box && boxLineKey.get(box)
-      if (key) goToLine(key)
+      const key = onsetSystemKey[event.onsetIndex]
+      if (!key || key === activeSystemKeyRef.current) {
+        pendingSystemRef.current = null
+        return
+      }
+      // Require the new system to hold for a couple of frames before moving.
+      const pending = pendingSystemRef.current
+      if (pending && pending.key === key) {
+        pending.count += 1
+        if (pending.count >= SYSTEM_CHANGE_FRAMES) {
+          pendingSystemRef.current = null
+          goToSystem(key)
+        }
+      } else {
+        pendingSystemRef.current = { key, count: 1 }
+      }
     },
-    [onsets, boxLineKey, goToLine],
+    [onsetSystemKey, goToSystem],
   )
 
   const { isTracking, error, start, stop, sendHint } = useAudioTracking({
@@ -148,24 +176,24 @@ export function ScoreViewer() {
     scoreNotes: score?.boundingBoxes,
   })
 
-  // A manual scroll says the reader is looking somewhere else, and is
-  // usually a correction. Nudge the backend tracker toward whichever line
-  // is nearest the middle of the viewport.
+  // A manual scroll says the reader is looking elsewhere. Nudge the tracker
+  // toward whichever system is nearest the middle of the viewport.
   const handleManualScroll = useCallback(() => {
     if (!isTracking || performance.now() < autoScrollUntilRef.current) return
 
     const viewportMiddle = window.innerHeight / 2
     let nearest: { key: string; distance: number } | null = null
-    for (const [key, element] of lineAnchorsRef.current) {
+    for (const [key, element] of systemAnchorsRef.current) {
       const distance = Math.abs(element.getBoundingClientRect().top - viewportMiddle)
       if (!nearest || distance < nearest.distance) nearest = { key, distance }
     }
-    if (!nearest) return
+    if (!nearest || nearest.key === activeSystemKeyRef.current) return
 
-    const onsetIndex = lineFirstOnset.get(nearest.key)
+    const onsetIndex = systemFirstOnset.get(nearest.key)
     if (onsetIndex !== undefined) sendHint(onsetIndex)
-    setActiveLineKey(nearest.key)
-  }, [isTracking, lineFirstOnset, sendHint])
+    activeSystemKeyRef.current = nearest.key
+    setActiveSystemKey(nearest.key)
+  }, [isTracking, systemFirstOnset, sendHint])
 
   useEffect(() => {
     if (!isTracking) return
@@ -194,20 +222,27 @@ export function ScoreViewer() {
       const onsetIndex = nearestOnset(onsets, pageIndex, x, y)
       if (onsetIndex < 0) return
       sendHint(onsetIndex, { firm: true })
-      const key = boxLineKey.get(onsets[onsetIndex][0])
-      if (key) setActiveLineKey(key)
+      pendingSystemRef.current = null
+      const key = onsetSystemKey[onsetIndex]
+      if (key) {
+        activeSystemKeyRef.current = key
+        setActiveSystemKey(key)
+      }
     },
-    [isTracking, score, onsets, boxLineKey, sendHint],
+    [isTracking, score, onsets, onsetSystemKey, sendHint],
   )
 
   const handleStart = useCallback(() => {
     setLogs([])
+    pendingSystemRef.current = null
     // Starting tracking means "I am at the top of the score" -- show that
-    // straight away, and let the backend seed its belief there too.
-    setActiveLineKey(lines[0] ? lineKey(lines[0]) : null)
+    // straight away; the backend seeds its belief there too.
+    const first = systems[0] ? `${systems[0].pageIndex}-${systems[0].systemIndex}` : null
+    activeSystemKeyRef.current = first
+    setActiveSystemKey(first)
     window.scrollTo({ top: 0, behavior: 'smooth' })
     start()
-  }, [start, lines])
+  }, [start, systems])
 
   const handleDownloadLogs = useCallback(() => {
     downloadJson(`${slugify(score?.title ?? 'score')}-detection-log.json`, logs)
@@ -268,7 +303,7 @@ export function ScoreViewer() {
       <div className="viewer-body">
         <div className="pages">
           {score.pages.map((page, pageIndex) => {
-            const pageLines = lines.filter((line) => line.pageIndex === page.pageIndex)
+            const pageSystems = systems.filter((system) => system.pageIndex === page.pageIndex)
             return (
               <div
                 key={page.pageIndex}
@@ -282,36 +317,30 @@ export function ScoreViewer() {
                   viewBox={`0 0 ${page.width} ${page.height}`}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                 >
-                  {pageLines
-                    .filter((line) => lineKey(line) === activeLineKey)
-                    .map((line) => {
-                      const band = lineBands.get(lineKey(line))
-                      if (!band) return null
-                      return (
-                        <rect
-                          key={lineKey(line)}
-                          x={0}
-                          y={band.top}
-                          width={page.width}
-                          height={band.height}
-                          fill="rgba(90, 140, 255, 0.16)"
-                          stroke="rgba(90, 140, 255, 0.55)"
-                          strokeWidth={2}
-                        />
-                      )
-                    })}
+                  {pageSystems
+                    .filter((system) => `${system.pageIndex}-${system.systemIndex}` === activeSystemKey)
+                    .map((system) => (
+                      <rect
+                        key={system.systemIndex}
+                        x={0}
+                        y={system.top}
+                        width={page.width}
+                        height={system.bottom - system.top}
+                        fill="rgba(90, 140, 255, 0.16)"
+                        stroke="rgba(90, 140, 255, 0.55)"
+                        strokeWidth={2}
+                      />
+                    ))}
                 </svg>
-                {pageLines.map((line) => {
-                  const band = lineBands.get(lineKey(line))
-                  const centerFraction = band
-                    ? (band.top + band.height / 2) / page.height
-                    : line.y / page.height
+                {pageSystems.map((system) => {
+                  const key = `${system.pageIndex}-${system.systemIndex}`
+                  const centerFraction = (system.top + system.bottom) / 2 / page.height
                   return (
                     <div
-                      key={lineKey(line)}
+                      key={key}
                       ref={(el) => {
-                        if (el) lineAnchorsRef.current.set(lineKey(line), el)
-                        else lineAnchorsRef.current.delete(lineKey(line))
+                        if (el) systemAnchorsRef.current.set(key, el)
+                        else systemAnchorsRef.current.delete(key)
                       }}
                       style={{ position: 'absolute', left: 0, top: `${centerFraction * 100}%`, width: 1, height: 1 }}
                     />

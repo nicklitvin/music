@@ -62,21 +62,31 @@ export function groupBoundingBoxesIntoLines(
   return lines
 }
 
-export interface LineBand {
+// A system of piano notation: a grand staff, i.e. a treble line and a bass
+// line played together. `groupBoundingBoxesIntoLines` splits those into two
+// rows because they are vertically apart; highlighting one of them marks
+// only one clef, and because consecutive onsets alternate between the two
+// staves, a per-line highlight also flickers between them. So the viewer
+// works in systems, not lines.
+export interface ScoreSystem {
+  pageIndex: number
+  systemIndex: number
+  lineIndexes: number[]
+  // Full pixel extent of the system's noteheads, plus a little padding.
   top: number
-  height: number
+  bottom: number
 }
 
-// The vertical strip to highlight for each line. A row of OMR noteheads is
-// often only one staff tall, but a piano system is a grand staff (treble +
-// bass), so a strip sized to the boxes alone marks just one clef. Instead
-// each band is sized to the local row-to-row spacing (clamped), which
-// covers the whole system the line sits in without bleeding far into its
-// neighbours. Keyed by `${pageIndex}-${lineIndex}`.
-export function computeLineBands(
+// Groups lines into systems. Within a page: a gap between consecutive rows
+// noticeably larger than the typical gap is a real break between systems;
+// inside each run between breaks, rows pair up two-to-a-system (grand
+// staff), with any odd row left as its own system. Robust to the common
+// OMR mess where the two staves of a system are evenly spaced with
+// everything else, which pure gap clustering cannot split.
+export function groupLinesIntoSystems(
   lines: ScoreLine[],
   pageHeights: Record<number, number>,
-): Map<string, LineBand> {
+): ScoreSystem[] {
   const byPage = new Map<number, ScoreLine[]>()
   for (const line of lines) {
     const list = byPage.get(line.pageIndex) ?? []
@@ -84,29 +94,42 @@ export function computeLineBands(
     byPage.set(line.pageIndex, list)
   }
 
-  const bands = new Map<string, LineBand>()
-  for (const [pageIndex, pageLines] of byPage) {
-    const pageHeight = pageHeights[pageIndex] ?? 1000
+  const systems: ScoreSystem[] = []
+  for (const [pageIndex, pageLines] of [...byPage.entries()].sort((a, b) => a[0] - b[0])) {
+    const pad = (pageHeights[pageIndex] ?? 1000) * 0.012
     const rows = [...pageLines]
       .map((line) => {
         const top = Math.min(...line.boxes.map((b) => b.y))
         const bottom = Math.max(...line.boxes.map((b) => b.y + b.height))
         return { line, top, bottom, mid: (top + bottom) / 2 }
       })
-      .sort((a, b) => a.mid - b.mid)
+      .sort((a, b) => a.top - b.top)
 
+    const gaps = rows.slice(1).map((row, i) => row.mid - rows[i].mid)
+    const sorted = [...gaps].sort((a, b) => a - b)
+    const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0
+    const breakThreshold = median * 1.4
+
+    // Split rows into runs at the large gaps.
+    const runs: (typeof rows)[] = [[]]
     rows.forEach((row, i) => {
-      const gaps: number[] = []
-      if (rows[i - 1]) gaps.push(row.mid - rows[i - 1].mid)
-      if (rows[i + 1]) gaps.push(rows[i + 1].mid - row.mid)
-      const rowGap = gaps.length ? Math.min(...gaps) : pageHeight * 0.06
-
-      const height = Math.min(
-        Math.max(rowGap * 1.15, pageHeight * 0.05, row.bottom - row.top + 24),
-        pageHeight * 0.11,
-      )
-      bands.set(`${pageIndex}-${row.line.lineIndex}`, { top: row.mid - height / 2, height })
+      if (i > 0 && gaps[i - 1] > breakThreshold) runs.push([])
+      runs[runs.length - 1].push(row)
     })
+
+    let systemIndex = 0
+    for (const run of runs) {
+      for (let i = 0; i < run.length; i += 2) {
+        const members = run.slice(i, i + 2)
+        systems.push({
+          pageIndex,
+          systemIndex: systemIndex++,
+          lineIndexes: members.map((m) => m.line.lineIndex),
+          top: Math.min(...members.map((m) => m.top)) - pad,
+          bottom: Math.max(...members.map((m) => m.bottom)) + pad,
+        })
+      }
+    }
   }
-  return bands
+  return systems
 }
