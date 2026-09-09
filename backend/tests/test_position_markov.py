@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from app.models import NoteBoundingBox
-from app.services.note_estimation import midi_to_hz, pitch_to_midi
+from app.services.note_estimation import midi_to_hz, midi_to_pitch, pitch_to_midi
 from app.services.position_markov import (
     MarkovConfig,
     MarkovPositionTracker,
@@ -173,6 +173,23 @@ def test_silence_does_not_change_the_belief():
     after = tracker.estimate()
     assert after.index == before.index
     assert after.confidence == pytest.approx(before.confidence)
+
+
+def test_search_window_caps_how_far_one_frame_can_move_the_belief():
+    # 60 distinct onsets. One frame of audio that matches a far onset: with
+    # a tight window the belief cannot cross it in a single step; an
+    # unconstrained tracker jumps straight to the match.
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+    one_far_frame = render([[midi_to_pitch(pitch_to_midi("C3") + 45)]], frames_each=1)
+
+    windowed = MarkovPositionTracker(timeline, MarkovConfig(search_ahead=6, search_behind=2))
+    windowed.observe(one_far_frame)
+    assert windowed.estimate().index <= 6
+
+    free = MarkovPositionTracker(timeline, MarkovConfig())
+    free.observe(one_far_frame)
+    assert free.estimate().index >= 40
 
 
 def test_jump_probability_of_zero_still_tracks_forward():

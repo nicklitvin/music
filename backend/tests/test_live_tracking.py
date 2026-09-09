@@ -122,3 +122,36 @@ def test_drop_in_partway_locks_on_without_lurching(start_at):
     # ...and once it has caught up, stays smooth.
     settled = positions[len(positions) // 2 :]
     assert np.abs(np.diff(settled)).max() <= 3
+
+
+def test_locality_window_blocks_a_jump_to_an_identical_passage_far_away():
+    # Block A at the very start, the identical block A again ~90 onsets
+    # later, unrelated filler between. Playing block A must hold the
+    # highlight at the start -- the far copy is outside the locality window
+    # and cannot win no matter how well it matches.
+    block_a = [[p] for p in ("C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5")]
+    filler = [[midi_to_pitch(pitch_to_midi("C3") + (i % 24))] for i in range(80)]
+    sequence = block_a + filler + block_a
+
+    notes: list[NoteBoundingBox] = []
+    for index, chord in enumerate(sequence):
+        for pitch in chord:
+            notes.append(
+                NoteBoundingBox(
+                    x=100.0 + 50 * index, y=0, width=10, height=10,
+                    note="quarter", pitch=pitch, measureIndex=1, pageIndex=0,
+                )
+            )
+    tl = build_timeline(notes, tempo_bpm=120.0)
+
+    tracker = MarkovPositionTracker(tl, LIVE_CONFIG)
+    tracker.apply_hint(0, strength=0.9, width=3.0)
+    reported = ReportedPosition(index=0)
+    audio = render(block_a, frames_each=10)
+    positions = [
+        reported.update(tracker.observe(audio[s : s + FRAME]).index)
+        for s in range(0, len(audio) - FRAME, FRAME)
+    ]
+
+    far_copy_starts_at = len(block_a) + len(filler)
+    assert max(positions) < far_copy_starts_at - LIVE_CONFIG.search_ahead

@@ -122,6 +122,17 @@ class MarkovConfig:
     # would understate how well the position is actually known.
     confidence_radius: int = 2
 
+    # Locality window. When set, each frame only updates belief for onsets
+    # within this many ahead / behind the current estimate; everything
+    # outside gets no probability that frame. None (the benchmark default)
+    # considers the whole score, which is what lets the model lock on from
+    # a cold start anywhere. A live page-turner instead knows where it
+    # started, so a small window makes a jump to a repeated passage
+    # elsewhere on the page structurally impossible rather than merely
+    # unlikely -- forward is generous (catching up a lag), backward tight.
+    search_ahead: int | None = None
+    search_behind: int = 8
+
     # --- tempo adaptation ---
     # The dwell model is built from the score's marked tempo, but nobody
     # plays at exactly that, and a performer who is 20% fast makes the
@@ -261,6 +272,14 @@ class MarkovPositionTracker:
             prior = self._advance()
             log_likelihood = (self.templates @ salience) / self.config.temperature
             log_posterior = np.log(np.maximum(prior, 1e-300)) + log_likelihood
+            if self.config.search_ahead is not None:
+                # Keep the update local: nothing outside a window around the
+                # current estimate can gain probability this frame.
+                center = int(np.argmax(self._log_belief))
+                lo = max(0, center - self.config.search_behind)
+                hi = center + self.config.search_ahead + 1
+                log_posterior[:lo] = -np.inf
+                log_posterior[hi:] = -np.inf
             log_posterior -= log_posterior.max()
             posterior = np.exp(log_posterior)
             posterior /= posterior.sum()

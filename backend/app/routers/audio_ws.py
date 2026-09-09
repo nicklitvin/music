@@ -13,13 +13,18 @@ from app.services.score_timeline import build_timeline
 router = APIRouter()
 
 # Tuning for the live page-turner use, as opposed to the offline benchmark
-# (which keeps MarkovConfig()'s defaults). Two differences:
-#  * the reader has told us where they start (top of the score, or a click),
-#    so a large jump is almost always the model being briefly fooled by a
-#    repeated passage -- make jumping much cheaper to *not* do;
-#  * a touch more smoothing, since a wrong highlight that twitches is worse
-#    here than an estimate that resolves a frame or two later.
+# (which keeps MarkovConfig()'s defaults). The reader tells us where they
+# start (top of the score, or a click), so:
+#  * a locality window -- the belief update each frame is confined to a
+#    band around the current estimate, so a repeated passage elsewhere on
+#    the page cannot pull the highlight to it, ever. Forward slack is ~1.5
+#    staff lines for catching up a lag; backward is tight.
+#  * jumping made much cheaper to not do, and a touch more smoothing, since
+#    a highlight that twitches is worse here than one that resolves a frame
+#    or two later.
 LIVE_CONFIG = MarkovConfig(
+    search_ahead=40,
+    search_behind=10,
     jump_probability=1e-7,
     jump_probability_confident=1e-12,
     temperature=0.12,
