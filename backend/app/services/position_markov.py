@@ -122,6 +122,25 @@ class MarkovConfig:
     # would understate how well the position is actually known.
     confidence_radius: int = 2
 
+    # How much a frame's own salience -- unit-norm, so this reads shape, not
+    # loudness -- is trusted to steer the belief. A real struck note (or
+    # chord) concentrates energy into a few harmonic peaks; background
+    # noise, room sound, or audio the harmonic model can't resolve spreads
+    # it thinly, so its peak is measurably lower even at the same volume.
+    # Below evidence_floor a frame is treated as too weak to discriminate
+    # between onsets at all and steers nothing; the influence ramps linearly
+    # up to full weight at evidence_ceiling. Without this, a run of weak,
+    # ambiguous frames (someone settling in before actually playing) can
+    # still scatter belief across the whole search window -- nothing anchors
+    # it near the current position -- and argmax ends up picking essentially
+    # at random among near-equal noise-driven candidates, which can be
+    # anywhere the window reaches. Calibrated against
+    # HarmonicSalienceEstimator output: clean single notes and chords peak
+    # around 0.28-0.41; broadband noise peaks around 0.16-0.20 regardless of
+    # its RMS.
+    evidence_floor: float = 0.20
+    evidence_ceiling: float = 0.32
+
     # Locality window. When set, each frame only updates belief for onsets
     # within this many ahead / behind the current estimate; everything
     # outside gets no probability that frame. None (the benchmark default)
@@ -267,11 +286,25 @@ class MarkovPositionTracker:
         if self._expected_frames is None:
             self._transition_log_probs(len(frame) / self.estimator.sample_rate)
 
-        if salience.any():
+        # Below evidence_floor the salience is too weak/undiscriminating to
+        # be evidence of anything -- background noise or room sound, not a
+        # struck note. Treated exactly like silence: no positional update at
+        # all, including no transition-model advance. Without this, elapsed
+        # time alone (someone settling in before actually playing) creeps
+        # the belief forward at the score's nominal tempo with nothing to
+        # anchor it, which reads as "the model thinks I've started" when
+        # nothing has been played yet.
+        if salience.any() and salience.max() >= self.config.evidence_floor:
             self._frame_number += 1
             prior = self._advance()
             log_likelihood = (self.templates @ salience) / self.config.temperature
-            log_posterior = np.log(np.maximum(prior, 1e-300)) + log_likelihood
+            # Above the floor but below evidence_ceiling, still only partly
+            # trust it -- ramps the observation's influence in linearly, so
+            # a merely-plausible frame nudges belief without letting it
+            # override the prior's own locality outright.
+            span = max(self.config.evidence_ceiling - self.config.evidence_floor, 1e-9)
+            evidence_weight = float(np.clip((salience.max() - self.config.evidence_floor) / span, 0.0, 1.0))
+            log_posterior = np.log(np.maximum(prior, 1e-300)) + evidence_weight * log_likelihood
             if self.config.search_ahead is not None:
                 # Keep the update local: nothing outside a window around the
                 # current estimate can gain probability this frame.

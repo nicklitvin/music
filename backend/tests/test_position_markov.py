@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from app.models import NoteBoundingBox
-from app.services.note_estimation import midi_to_hz, midi_to_pitch, pitch_to_midi
+from app.services.note_estimation import HarmonicSalienceEstimator, midi_to_hz, midi_to_pitch, pitch_to_midi
 from app.services.position_markov import (
     MarkovConfig,
     MarkovPositionTracker,
@@ -173,6 +173,48 @@ def test_silence_does_not_change_the_belief():
     after = tracker.estimate()
     assert after.index == before.index
     assert after.confidence == pytest.approx(before.confidence)
+
+
+def test_weak_undiscriminating_audio_does_not_move_the_belief_far():
+    # Broadband noise: non-silent (passes the RMS gate), but its salience
+    # peak rarely reaches evidence_floor, unlike a real struck note/chord
+    # (test_evidence_floor_matches... below). A long run of it must not
+    # scatter the tracker across the score -- not even via the transition
+    # model's own advance, which is what let elapsed time alone look like
+    # "the player has started" before anyone actually played. Small jump
+    # probabilities (as tuned for live use, not the benchmark defaults) so
+    # 200 frames of nothing but noise isn't just measuring how fast the
+    # whole-score uniform-jump term diffuses on its own.
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+    config = MarkovConfig(search_ahead=40, search_behind=10, jump_probability=1e-7, jump_probability_confident=1e-12)
+    tracker = MarkovPositionTracker(timeline, config)
+    tracker.apply_hint(0, strength=0.9, width=3.0)  # "start tracking" seeds belief at the top
+
+    rng = np.random.default_rng(0)
+    for _ in range(200):  # 15s of nothing but noise
+        tracker.observe(rng.normal(0, 2500, FRAME))
+
+    assert tracker.estimate().index <= 3
+
+
+def test_evidence_floor_matches_the_salience_estimators_actual_scale():
+    # A real chord's salience peak clears the floor; broadband noise at any
+    # RMS does not (it spreads energy thinly instead of into harmonic
+    # peaks). This is the calibration the floor/ceiling in MarkovConfig
+    # assumes -- if the estimator's output shape ever changes, this is the
+    # test that should catch a floor tuned for the wrong scale.
+    estimator = HarmonicSalienceEstimator()
+    salience = np.zeros(0)
+    for chunk in render([["C4", "E4", "G4"]], frames_each=3).reshape(-1, FRAME):
+        salience = estimator.estimate(chunk)
+    assert salience.max() >= MarkovConfig().evidence_floor
+
+    rng = np.random.default_rng(0)
+    noisy_estimator = HarmonicSalienceEstimator()
+    for _ in range(5):
+        salience = noisy_estimator.estimate(rng.normal(0, 2500, FRAME))
+    assert salience.max() < MarkovConfig().evidence_floor
 
 
 def test_search_window_caps_how_far_one_frame_can_move_the_belief():

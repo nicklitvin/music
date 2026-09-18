@@ -124,6 +124,30 @@ def test_drop_in_partway_locks_on_without_lurching(start_at):
     assert np.abs(np.diff(settled)).max() <= 3
 
 
+def test_a_quiet_moment_before_playing_starts_does_not_advance_the_highlight():
+    # The reported bug: press "Start Tracking", and before any real playing
+    # a brief window of room noise / mic settling gets fed in. It must not
+    # read as "the piece has started" and creep the highlight forward --
+    # only a real struck note should move it off the top.
+    rng = np.random.default_rng(0)
+    tracker = MarkovPositionTracker(timeline(), LIVE_CONFIG)
+    tracker.apply_hint(0, strength=0.9, width=3.0)
+    reported = ReportedPosition(index=0)
+
+    positions = []
+    for _ in range(100):  # 7.5s of nothing but noise
+        estimate = tracker.observe(rng.normal(0, 2500, FRAME))
+        positions.append(reported.update(estimate.index))
+
+    assert max(positions) <= 2, f"quiet noise alone reached onset {max(positions)}"
+
+    # Once the player actually starts, tracking still works normally.
+    audio = render(SEQUENCE)
+    final = [reported.update(tracker.observe(audio[s : s + FRAME]).index)
+             for s in range(0, len(audio) - FRAME, FRAME)][-1]
+    assert final >= len(SEQUENCE) - 3
+
+
 def test_locality_window_blocks_a_jump_to_an_identical_passage_far_away():
     # Block A at the very start, the identical block A again ~90 onsets
     # later, unrelated filler between. Playing block A must hold the
