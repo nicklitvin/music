@@ -51,7 +51,13 @@ from app.services.score_timeline import TimelineOnset
 NOTE_DECAY_SECONDS = 1.0
 
 
-def sounding_weights(timeline: list[TimelineOnset], index: int) -> dict[int, float]:
+def longest_note_seconds(timeline: list[TimelineOnset]) -> float:
+    return max((d for onset in timeline for d in onset.note_durations), default=0.0)
+
+
+def sounding_weights(
+    timeline: list[TimelineOnset], index: int, longest_note: float | None = None
+) -> dict[int, float]:
     """What is audible at onset `index`, as {midi: weight}.
 
     Not the same as the notes that *start* here: a note struck earlier
@@ -60,12 +66,24 @@ def sounding_weights(timeline: list[TimelineOnset], index: int) -> dict[int, flo
     built only from the notes starting at an onset mispredicts the spectrum
     as soon as the score sustains anything, and every later onset then
     matches the observed audio better than the correct one.
+
+    Scans backwards and stops at the first onset old enough that even the
+    score's longest note would have been released by now -- everything
+    before it is released too. Without that, building templates for a whole
+    multi-page score is quadratic in its onsets (and it is rebuilt per
+    tracker, including once per live session at INIT). Pass `longest_note`
+    to skip recomputing it per call.
     """
     now = timeline[index].start_seconds
+    if longest_note is None:
+        longest_note = longest_note_seconds(timeline)
     weights: dict[int, float] = {}
 
-    for onset in timeline[: index + 1]:
+    for position in range(index, -1, -1):
+        onset = timeline[position]
         age = now - onset.start_seconds
+        if age > longest_note:
+            break
         for note, duration in zip(onset.notes, onset.note_durations):
             if onset.start_seconds + duration <= now:
                 continue  # already released
@@ -80,8 +98,9 @@ def sounding_weights(timeline: list[TimelineOnset], index: int) -> dict[int, flo
 def build_templates(timeline: list[TimelineOnset]) -> np.ndarray:
     """Expected salience at each onset, unit-norm, ready to cosine-match."""
     templates = np.zeros((len(timeline), NUM_PITCHES))
+    longest_note = longest_note_seconds(timeline)
     for index in range(len(timeline)):
-        for midi, weight in sounding_weights(timeline, index).items():
+        for midi, weight in sounding_weights(timeline, index, longest_note).items():
             templates[index, midi - MIN_MIDI] = weight
         norm = np.linalg.norm(templates[index])
         if norm > 0:

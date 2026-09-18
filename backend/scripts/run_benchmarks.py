@@ -2,10 +2,12 @@
 /api/benchmarks` serves for local inspection (see backend/README for why
 nothing in the UI shows it).
 
-Every piece is real: one page of a real sheet (OMR'd via extract_notes.py)
-scored against its real accompanying recording. Ground truth is recovered
-by aligning detected audio onsets to the score (see benchmark_eval.py); it
-is a diagnostic aid, not exact.
+Every piece is real: a real sheet (OMR'd via extract_all_pages.py) scored
+against its real accompanying recording, using every page OMR has been run
+on -- a single page only covers the first minute or so of a five-minute
+recording, leaving the rest with no score material to track against.
+Ground truth is recovered by aligning detected audio onsets to the score
+(see benchmark_eval.py); it is a diagnostic aid, not exact.
 
     content/full/<piece>/score.pdf
     content/full/<piece>/notes.json        (extract_notes.py output)
@@ -65,7 +67,7 @@ def find_performance_file(piece_dir: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def run_full_piece(slug: str, piece_dir: Path) -> dict | None:
+def run_full_piece(slug: str, piece_dir: Path, page: int | None) -> dict | None:
     performance = find_performance_file(piece_dir)
     if performance is None:
         # No recording to test against regardless of OMR status -- list it
@@ -84,13 +86,16 @@ def run_full_piece(slug: str, piece_dir: Path) -> dict | None:
     decode_to_wav(performance, wav_path)
 
     notes = json.loads(notes_json.read_text(encoding="utf-8"))
-    timeline = be.timeline_from_notes_json(notes, page=0, tempo_bpm=99.0)
+    pages = sorted({note.get("pageIndex", 0) for note in notes})
+    timeline = be.timeline_from_notes_json(notes, page=page, tempo_bpm=99.0)
     if not timeline:
-        log(f"{slug}: notes.json has no page-0 notes, skipping")
+        log(f"{slug}: notes.json has no notes for page {page}, skipping")
         return {"slug": slug, "hasPerformance": True, "error": "no notes extracted"}
 
     audio = be.load_wav(wav_path)
-    log(f"{slug}: evaluating ({len(audio) / be.RATE:.0f}s recording, {len(timeline)} onsets)...")
+    scored_pages = pages if page is None else [page]
+    log(f"{slug}: evaluating ({len(audio) / be.RATE:.0f}s recording, {len(timeline)} onsets "
+        f"over {len(scored_pages)} page(s))...")
     result = be.evaluate_piece(audio, timeline)
     if result is None:
         log(f"{slug}: could not align recording to score")
@@ -99,12 +104,16 @@ def run_full_piece(slug: str, piece_dir: Path) -> dict | None:
     sp = result.livePath["startPoints"]
     log(f"{slug}: done -- {result.matchedOnsets}/{result.totalScoreOnsets} onsets matched, "
         f"start-anywhere within {sp['targetSeconds']}s: {sp['withinTarget']}/{sp['total']}")
-    return {"slug": slug, "hasPerformance": True, **result.__dict__}
+    return {"slug": slug, "hasPerformance": True, "pagesScored": scored_pages, **result.__dict__}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", type=str, default=None, help="Comma-separated slugs to limit to")
+    parser.add_argument("--page", type=int, default=None,
+                        help="Score only this page (default: every page OMR has been run on)")
+    parser.add_argument("--out", type=Path, default=RESULTS_PATH,
+                        help="Where to write the results JSON (default: backend/benchmark_results.json)")
     args = parser.parse_args()
     only = set(args.only.split(",")) if args.only else None
 
@@ -115,15 +124,15 @@ def main() -> None:
         slug = piece_dir.name
         if only and slug not in only:
             continue
-        result = run_full_piece(slug, piece_dir)
+        result = run_full_piece(slug, piece_dir, args.page)
         if result:
             full_results.append(result)
 
-    RESULTS_PATH.write_text(
+    args.out.write_text(
         json.dumps({"generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"), "full": full_results}, indent=2),
         encoding="utf-8",
     )
-    log(f"wrote {RESULTS_PATH}")
+    log(f"wrote {args.out}")
 
 
 if __name__ == "__main__":

@@ -74,12 +74,21 @@ def sounding_weights(timeline: list[TimelineOnset], index: int) -> dict[int, flo
     template built only from the notes that *start* here fails as soon as
     the score sustains anything -- the observed spectrum contains energy
     the template does not predict, and some later onset matches it better.
+
+    Scans backwards and stops at the first onset old enough that even the
+    score's longest note would have been released by now -- everything
+    before it is released too, so this stays linear in the window that can
+    still be ringing rather than in the whole score so far.
     """
     now = timeline[index].start_seconds
+    longest_note = max((d for onset in timeline for d in onset.note_durations), default=0.0)
     weights: dict[int, float] = {}
 
-    for onset in timeline[: index + 1]:
+    for position in range(index, -1, -1):
+        onset = timeline[position]
         age = now - onset.start_seconds
+        if age > longest_note:
+            break
         for note, duration in zip(onset.notes, onset.note_durations):
             if onset.start_seconds + duration <= now:
                 continue  # already released

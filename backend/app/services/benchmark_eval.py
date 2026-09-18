@@ -48,10 +48,17 @@ def load_wav(path: Path) -> np.ndarray:
     return np.frombuffer(raw, dtype="<i2").astype(np.float64)
 
 
-def timeline_from_notes_json(notes: list[dict], page: int = 0, tempo_bpm: float = 99.0) -> list[TimelineOnset]:
+def timeline_from_notes_json(notes: list[dict], page: int | None = 0, tempo_bpm: float = 99.0) -> list[TimelineOnset]:
     """From raw OMR note bounding boxes (extract_notes.py output): lays
-    them out in time from each note's own type/duration."""
-    boxes = [NoteBoundingBox(**n) for n in notes if n.get("pageIndex", 0) == page]
+    them out in time from each note's own type/duration.
+
+    `page=None` uses every page present in the file, laid out back to back
+    in reading order -- which is what a recording of the whole piece needs
+    to align against. A single page only covers the first minute or so of a
+    five-minute recording, so everything after that has no score material
+    to be tracked against at all.
+    """
+    boxes = [NoteBoundingBox(**n) for n in notes if page is None or n.get("pageIndex", 0) == page]
     return build_timeline(boxes, tempo_bpm=tempo_bpm)
 
 
@@ -139,6 +146,10 @@ class Alignment:
     detected_onsets: int
     matched_onsets: int
     last_matched_time_seconds: float
+    # Sample index of every note onset detected in the audio -- i.e. every
+    # moment something is actually being played. Start-point selection uses
+    # these so a cold start is never asked to find its place from silence.
+    onset_samples: list[int] = field(default_factory=list)
 
 
 def align_recording(audio: np.ndarray, timeline: list[TimelineOnset]) -> Alignment | None:
@@ -157,6 +168,7 @@ def align_recording(audio: np.ndarray, timeline: list[TimelineOnset]) -> Alignme
         detected_onsets=len(onset_samples),
         matched_onsets=len(anchors),
         last_matched_time_seconds=onset_samples[last_k] / RATE,
+        onset_samples=onset_samples,
     )
 
 
@@ -274,9 +286,10 @@ def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *,
     return positions, np.array(jumps), np.array(errors), lock
 
 
-def evaluate_live_path(audio, frames, truth_index, timeline: list[TimelineOnset], end_sample: int) -> dict:
+def evaluate_live_path(audio, frames, truth_index, timeline: list[TimelineOnset], alignment: "Alignment") -> dict:
     """The actual live path a listener sees: LIVE_CONFIG Markov tracker
     seeded at onset 0, reported position rate-limited."""
+    end_sample = alignment.end_sample
     positions, jumps, errors, _ = _live_run(audio, frames, truth_index, timeline, end_sample, 0)
     playthrough = {
         "finalOnset": int(positions[-1]),
@@ -287,7 +300,7 @@ def evaluate_live_path(audio, frames, truth_index, timeline: list[TimelineOnset]
         "within3": round(100 * float(np.mean(errors <= 3)), 1) if len(errors) else None,
         "maxError": int(errors.max()) if len(errors) else None,
     }
-    return {"playthrough": playthrough, "startPoints": evaluate_start_points(audio, frames, truth_index, timeline, end_sample)}
+    return {"playthrough": playthrough, "startPoints": evaluate_start_points(audio, frames, truth_index, timeline, alignment)}
 
 
 # "A few seconds" -- the target this whole evaluation is judged against: a
@@ -296,18 +309,36 @@ def evaluate_live_path(audio, frames, truth_index, timeline: list[TimelineOnset]
 START_POINT_TARGET_SECONDS = 5.0
 
 
+def start_point_samples(alignment: "Alignment", end_sample: int, n_starts: int, tail_seconds: float = 6.0) -> list[int]:
+    """Where to try starting from: moments a note is actually struck.
+
+    Spread evenly over the recording's *detected onsets* rather than over
+    the clock, so every start point is a real "the player starts playing
+    here" moment. Picking by clock instead lands starts in rests, page
+    turns and held chords, where there is nothing to identify a position
+    from and the tracker is being blamed for silence.
+    """
+    latest = end_sample - int(tail_seconds * RATE)  # leave room to actually lock
+    playable = [s for s in alignment.onset_samples if s <= latest]
+    if not playable:
+        return []
+    picks = np.linspace(0, len(playable) - 1, min(n_starts, len(playable)))
+    return sorted({playable[int(round(i))] for i in picks})
+
+
 def evaluate_start_points(
     audio,
     frames,
     truth_index,
     timeline: list[TimelineOnset],
-    end_sample: int,
+    alignment: "Alignment",
     n_starts: int = 15,
     target_seconds: float = START_POINT_TARGET_SECONDS,
 ) -> dict:
     """How well a truly cold tracker (no seed -- the reader may have started
-    playing anywhere on the page) finds and locks onto the correct position,
-    tried from many points spread across the whole matched recording.
+    playing anywhere in the piece) finds and locks onto the correct
+    position, tried from many points spread across the whole matched
+    recording.
 
     This is what "80% correct within a few seconds, from any moment" (the
     actual product requirement) means as a number: for each start point, a
@@ -318,16 +349,17 @@ def evaluate_start_points(
     within +/-3 onsets of ground truth -- close enough to be "the right
     spot on the page" per this module's convention throughout).
     """
-    duration = end_sample / RATE
-    if duration < 8.0:
+    end_sample = alignment.end_sample
+    if end_sample / RATE < 8.0:
         return {"targetSeconds": target_seconds, "results": [], "lockedCount": 0, "withinTarget": 0, "total": 0, "withinTargetPct": None}
 
-    begins = np.linspace(0, max(duration - 6.0, 0.1), n_starts)
     results = []
-    for begin_s in begins:
-        begin_sample = int(begin_s * RATE)
+    for begin_sample in start_point_samples(alignment, end_sample, n_starts):
         _, _, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, seed_hint=False)
-        results.append({"startSeconds": round(float(begin_s), 1), "locksAfterSeconds": round(lock, 2) if lock is not None else None})
+        results.append({
+            "startSeconds": round(begin_sample / RATE, 1),
+            "locksAfterSeconds": round(lock, 2) if lock is not None else None,
+        })
 
     locked = [r for r in results if r["locksAfterSeconds"] is not None]
     within = [r for r in locked if r["locksAfterSeconds"] <= target_seconds]
@@ -381,7 +413,7 @@ def evaluate_piece(audio: np.ndarray, timeline: list[TimelineOnset]) -> PieceEva
         lastMatchedTimeSeconds=round(alignment.last_matched_time_seconds, 1),
         detection=evaluate_detection(frames, truth_index, timeline, alignment.end_sample),
         tracking=evaluate_tracking_methods(audio, frames, truth_index, timeline, alignment.end_sample),
-        livePath=evaluate_live_path(audio, frames, truth_index, timeline, alignment.end_sample),
+        livePath=evaluate_live_path(audio, frames, truth_index, timeline, alignment),
         warnings=warnings,
     )
 
