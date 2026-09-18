@@ -92,11 +92,15 @@ async def track_audio(websocket: WebSocket) -> None:
 
     Protocol:
       * Send a JSON text frame ``{"type": "INIT", "notes": [...bounding
-        boxes...], "tempoBpm"?: number}`` once, before any audio, to enable
-        position tracking. The tracker's belief starts at the top of the
-        score -- starting tracking means "I am at the beginning". Without an
-        INIT the socket still runs raw pitch detection and replies with
-        ``NOTE_DETECTION`` frames.
+        boxes...], "tempoBpm"?: number, "startOnsetIndex"?: number}`` once,
+        before any audio, to enable position tracking. Without a
+        ``startOnsetIndex`` the tracker's belief starts uniform across the
+        whole score -- the reader may start playing anywhere on the page,
+        not just the top -- and locks on from audio evidence alone. Pass
+        ``startOnsetIndex`` only when the caller actually knows where
+        playback begins (e.g. resuming a previous session); it seeds the
+        belief there instead. Without an INIT the socket still runs raw
+        pitch detection and replies with ``NOTE_DETECTION`` frames.
       * Send binary PCM16 mono 16 kHz frames (~75 ms each) for the audio.
       * Send ``{"type": "HINT", "onsetIndex": n, "firm"?: bool}`` when the
         reader scrolls (soft) or clicks a spot on the sheet (firm) to fold
@@ -168,11 +172,16 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
         if not timeline:
             return None
         tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
-        start_index = int(payload.get("startOnsetIndex", 0))
-        start_index = max(0, min(start_index, len(timeline) - 1))
-        # Seed the belief at the start (or the given onset) so tracking
-        # begins from a known spot rather than a blank uniform prior.
-        tracker.apply_hint(start_index, strength=0.9, width=3.0)
+        start_index = 0
+        raw_start = payload.get("startOnsetIndex")
+        if raw_start is not None:
+            # The caller actually knows where playback begins (e.g.
+            # resuming a session) -- seed the belief there. Otherwise leave
+            # the tracker's own uniform prior alone so a performer starting
+            # anywhere on the page is found from audio evidence, not assumed
+            # to be at the top.
+            start_index = max(0, min(int(raw_start), len(timeline) - 1))
+            tracker.apply_hint(start_index, strength=0.9, width=3.0)
         return _Session(tracker, start_index)
 
     if kind == "HINT" and session is not None:

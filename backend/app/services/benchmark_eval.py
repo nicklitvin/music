@@ -1,19 +1,18 @@
 """Reusable evaluation core shared by scripts/evaluate_real_recording.py
 (human-readable CLI) and scripts/run_benchmarks.py (batch runner that
-produces the committed JSON the frontend's Benchmarks page reads).
+produces the committed JSON `GET /api/benchmarks` serves for local
+inspection -- see backend/README for why nothing in the UI shows it).
 
-Two kinds of evaluation live here:
-
-* Real-recording evaluation (`evaluate_piece`): a real performance's true
-  position is not known, so it is recovered by detecting note onsets in
-  the recording and string-aligning their detected pitch content to the
-  score's onsets (see `align_recording`). This is a diagnostic aid, not
-  exact ground truth -- treat the numbers as "roughly this good/bad".
-* Synthesized-sample evaluation (`evaluate_sample`): a WAV rendered from
-  the score itself (scripts/synthesize_score.py) has an exact, known
-  position at every instant, so this scores every tracking method against
-  it directly -- the same thing scripts/evaluate_tracking.py does, wrapped
-  to return a dict instead of printing a table.
+Every evaluation here works from a REAL recording: since a real
+performance's true position is not known up front, it is recovered by
+detecting note onsets in the recording and string-aligning their detected
+pitch content to the score's onsets (see `align_recording`). This is a
+diagnostic aid, not exact ground truth -- treat the numbers as "roughly
+this good/bad". (An earlier version of this module also scored synthesized
+audio with exactly-known ground truth; that machinery -- and the
+synthesized samples it evaluated -- was retired in favor of testing
+against real recordings from many start points instead, which is what the
+product actually needs to get right. See `evaluate_start_points`.)
 """
 
 from __future__ import annotations
@@ -54,35 +53,6 @@ def timeline_from_notes_json(notes: list[dict], page: int = 0, tempo_bpm: float 
     them out in time from each note's own type/duration."""
     boxes = [NoteBoundingBox(**n) for n in notes if n.get("pageIndex", 0) == page]
     return build_timeline(boxes, tempo_bpm=tempo_bpm)
-
-
-def timeline_from_truth_json(truth: dict) -> list[TimelineOnset]:
-    """From a synthesize_score.py truth JSON: reconstructs onsets from its
-    own stored fields (advanceSeconds, durations) rather than re-deriving
-    them from a note type, since the truth file is the only place that
-    information survived synthesis. `start_seconds` here is a placeholder
-    (0..N-1) -- true onset timing for evaluation comes from `startSeconds`
-    in the truth JSON directly, passed separately to evaluate_sample."""
-    timeline = []
-    for entry in truth["onsets"]:
-        notes = [
-            NoteBoundingBox(
-                x=entry["x"], y=entry["y"], width=1, height=1,
-                note="quarter", pitch=pitch,
-                measureIndex=entry["measureIndex"], pageIndex=truth.get("pageIndex", 0),
-            )
-            for pitch in entry["pitches"]
-        ]
-        timeline.append(
-            TimelineOnset(
-                index=entry["index"],
-                start_seconds=entry.get("scoreSeconds", entry["startSeconds"]),
-                advance_seconds=entry["advanceSeconds"],
-                notes=notes,
-                note_durations=entry["durations"],
-            )
-        )
-    return timeline
 
 
 # ---------------------------------------------------------------- onsets
@@ -278,9 +248,10 @@ def evaluate_tracking_methods(audio, frames, truth_index, timeline: list[Timelin
     return results
 
 
-def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample):
+def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *, seed_hint: bool = True):
     tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
-    tracker.apply_hint(0, strength=0.9, width=3.0)
+    if seed_hint:
+        tracker.apply_hint(0, strength=0.9, width=3.0)
     reported = ReportedPosition(index=0)
     positions, jumps, errors = [], [], []
     prev, run, lock = 0, 0, None
@@ -316,19 +287,58 @@ def evaluate_live_path(audio, frames, truth_index, timeline: list[TimelineOnset]
         "within3": round(100 * float(np.mean(errors <= 3)), 1) if len(errors) else None,
         "maxError": int(errors.max()) if len(errors) else None,
     }
-    cold_starts = []
-    for offset_s in range(0, 60, 10):
-        begin = offset_s * RATE
-        if begin >= end_sample:
-            break
-        pos, jmp, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, begin)
-        after = int(jmp[max(0, int(lock / 0.075)) :].max()) if lock is not None and len(jmp) else None
-        cold_starts.append({
-            "startSeconds": offset_s,
-            "locksAfterSeconds": round(lock, 1) if lock is not None else None,
-            "largestMoveAfterLock": after,
-        })
-    return {"playthrough": playthrough, "coldStarts": cold_starts}
+    return {"playthrough": playthrough, "startPoints": evaluate_start_points(audio, frames, truth_index, timeline, end_sample)}
+
+
+# "A few seconds" -- the target this whole evaluation is judged against: a
+# reader who starts playing at an arbitrary point on the page should be
+# found and correctly tracked within this long, most of the time.
+START_POINT_TARGET_SECONDS = 5.0
+
+
+def evaluate_start_points(
+    audio,
+    frames,
+    truth_index,
+    timeline: list[TimelineOnset],
+    end_sample: int,
+    n_starts: int = 15,
+    target_seconds: float = START_POINT_TARGET_SECONDS,
+) -> dict:
+    """How well a truly cold tracker (no seed -- the reader may have started
+    playing anywhere on the page) finds and locks onto the correct position,
+    tried from many points spread across the whole matched recording.
+
+    This is what "80% correct within a few seconds, from any moment" (the
+    actual product requirement) means as a number: for each start point, a
+    fresh tracker is fed audio beginning there with no hint at all, and we
+    record how long -- if ever -- it takes for the reported position to
+    become correct and *stay* correct (a single lucky frame doesn't count;
+    see `_live_run`'s own lock logic, which requires 8 consecutive frames
+    within +/-3 onsets of ground truth -- close enough to be "the right
+    spot on the page" per this module's convention throughout).
+    """
+    duration = end_sample / RATE
+    if duration < 8.0:
+        return {"targetSeconds": target_seconds, "results": [], "lockedCount": 0, "withinTarget": 0, "total": 0, "withinTargetPct": None}
+
+    begins = np.linspace(0, max(duration - 6.0, 0.1), n_starts)
+    results = []
+    for begin_s in begins:
+        begin_sample = int(begin_s * RATE)
+        _, _, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, seed_hint=False)
+        results.append({"startSeconds": round(float(begin_s), 1), "locksAfterSeconds": round(lock, 2) if lock is not None else None})
+
+    locked = [r for r in results if r["locksAfterSeconds"] is not None]
+    within = [r for r in locked if r["locksAfterSeconds"] <= target_seconds]
+    return {
+        "targetSeconds": target_seconds,
+        "results": results,
+        "lockedCount": len(locked),
+        "withinTarget": len(within),
+        "total": len(results),
+        "withinTargetPct": round(100 * len(within) / len(results), 1) if results else None,
+    }
 
 
 @dataclass
@@ -376,17 +386,3 @@ def evaluate_piece(audio: np.ndarray, timeline: list[TimelineOnset]) -> PieceEva
     )
 
 
-def evaluate_sample(audio: np.ndarray, timeline: list[TimelineOnset], true_onset_starts: list[float]) -> dict:
-    """A synthesized WAV whose true position is known exactly (no
-    alignment needed) -- scores note detection and every tracking method
-    against the real ground truth."""
-    frames = frame_saliences(audio)
-    starts = np.asarray(true_onset_starts) * RATE
-    truth_index = [max(0, min(len(starts) - 1, int(np.searchsorted(starts, s, side="right") - 1))) for _, _, s in frames]
-    end_sample = len(audio)
-    return {
-        "durationSeconds": round(len(audio) / RATE, 1),
-        "totalScoreOnsets": len(timeline),
-        "detection": evaluate_detection(frames, truth_index, timeline, end_sample),
-        "tracking": evaluate_tracking_methods(audio, frames, truth_index, timeline, end_sample),
-    }

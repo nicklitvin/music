@@ -2,10 +2,12 @@
 limiter from app.routers.audio_ws, exercised end to end on synthesized
 audio the way /ws/track-audio drives it.
 
-The offline benchmark (scripts/evaluate_tracking.py) covers accuracy. What
-matters here is steadiness: starting tracking means "I am at the top", and
-from there -- or from a drop-in partway through the first page -- the
-highlight must not lurch across the score on a single fooled frame.
+Real-recording accuracy (including finding a cold start from anywhere on
+the page) is covered by app/services/benchmark_eval.py's
+`evaluate_start_points`. What matters here is steadiness: once the tracker
+is confidently locked onto a position -- whether seeded there explicitly or
+found from audio alone -- the highlight must not lurch across the score on
+a single fooled frame.
 """
 
 import numpy as np

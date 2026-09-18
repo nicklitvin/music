@@ -1,21 +1,16 @@
 """CLI: score note detection + position tracking on a REAL recording.
 
-Unlike scripts/evaluate_tracking.py, which feeds synthesized audio whose
-true score position at every instant is known, this takes a real
-performance where it is not. Ground truth is recovered by detecting note
-onsets in the recording and string-aligning their detected pitch content
-to the score's onsets (one page's worth -- that is all OMR gives per run).
-The recording may contain later pages; alignment stops at the last
-matched onset and only frames before then are scored.
-
-The alignment is a diagnostic aid, not exact: on a synthesized reference
-(where the true answer is known) it agrees with the true onset within
-+/-2 about 94% of the time. Treat the numbers as "roughly this bad", not
-to two decimals.
+A real performance's true score position is not known up front, so it is
+recovered by detecting note onsets in the recording and string-aligning
+their detected pitch content to the score's onsets (one page's worth --
+that is all OMR gives per run). The recording may contain later pages;
+alignment stops at the last matched onset and only frames before then are
+scored. Treat the alignment as a diagnostic aid, not exact -- "roughly
+this bad", not to two decimals.
 
 The evaluation logic itself lives in app/services/benchmark_eval.py, also
-used by scripts/run_benchmarks.py to build the JSON the frontend's
-Benchmarks page reads.
+used by scripts/run_benchmarks.py to build the JSON `GET /api/benchmarks`
+serves for local inspection.
 
 Decode the recording first (it must be 16 kHz mono 16-bit WAV):
     ffmpeg -i recording.mp3 -ac 1 -ar 16000 -sample_fmt s16 recording.wav
@@ -87,12 +82,15 @@ def main() -> None:
     if lp["meanAbsoluteError"] is not None:
         print(f"  MAE {lp['meanAbsoluteError']}   within +/-3: {lp['within3']}%   max error {lp['maxError']}")
 
-    print("\nlive path -- cold start from a point in the first 60s (belief still seeded at 0)")
-    print(f"  {'from':>6}  {'locks after':>12}  {'max move after that':>20}")
-    for cs in result.livePath["coldStarts"]:
-        lock = "never" if cs["locksAfterSeconds"] is None else f"{cs['locksAfterSeconds']}s"
-        after = cs["largestMoveAfterLock"] if cs["largestMoveAfterLock"] is not None else 0
-        print(f"  {cs['startSeconds']:>4}s  {lock:>12}  {after:>20}")
+    sp = result.livePath["startPoints"]
+    print(f"\nlive path -- cold start from anywhere (no hint), {sp['total']} points across the matched recording")
+    print(f"  {'from':>8}  {'locks after':>12}")
+    for r in sp["results"]:
+        lock = "never" if r["locksAfterSeconds"] is None else f"{r['locksAfterSeconds']}s"
+        print(f"  {r['startSeconds']:>7}s  {lock:>12}")
+    if sp["withinTargetPct"] is not None:
+        print(f"  locked {sp['lockedCount']}/{sp['total']}, within {sp['targetSeconds']}s: "
+              f"{sp['withinTarget']}/{sp['total']} ({sp['withinTargetPct']}%)")
 
 
 if __name__ == "__main__":

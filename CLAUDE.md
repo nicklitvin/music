@@ -41,10 +41,16 @@
   don't casually bump those.
 - **Test material lives in `content/`, entirely gitignored** (real, often
   copyrighted, sheet music PDFs and recordings) — laid out as
-  `content/full/<piece>/{score.pdf,notes.json,performance.*}` and
-  `content/samples/<piece>/<variant>.wav`+`-truth.json`. The one exception
-  is `backend/benchmark_results.json`, produced by
-  `backend/scripts/run_benchmarks.py` and served by `GET /api/benchmarks`
-  to the frontend's Benchmarks page — it **is** committed, but only ever
-  holds aggregate metrics (F1 scores, accuracy percentages, jump counts).
-  Never add per-note/per-pitch content to it.
+  `content/full/<piece>/{score.pdf,notes.json,performance.*}`. Accuracy
+  testing uses only these real sheet+recording pairs (page 0, i.e. wherever
+  OMR has actually been run) — there used to also be synthesized
+  score-audio test cases under `content/samples/`, but those were retired
+  and archived to `content/archive/samples/`; don't resurrect that pattern
+  for new test cases, since a synthesized performance's exact-known ground
+  truth doesn't tell you what real playing does to detection/tracking. The
+  one exception to content/'s gitignore is `backend/benchmark_results.json`,
+  produced by `backend/scripts/run_benchmarks.py` and served by
+  `GET /api/benchmarks` for local inspection only (nothing in the UI reads
+  it; see backend/README) — it **is** committed, but only ever holds
+  aggregate metrics (F1 scores, accuracy percentages, lock times). Never
+  add per-note/per-pitch content to it.

@@ -253,7 +253,7 @@ class MarkovPositionTracker:
         blended = (1 - self.config.tempo_smoothing) * self.tempo_ratio + self.config.tempo_smoothing * measured
         self.tempo_ratio = float(np.clip(blended, self.config.min_tempo_ratio, self.config.max_tempo_ratio))
 
-    def _advance(self) -> np.ndarray:
+    def _advance(self, settled: bool) -> np.ndarray:
         """Applies the transition model to the current belief."""
         assert self._expected_frames is not None
         belief = np.exp(self._log_belief - self._log_belief.max())
@@ -276,7 +276,6 @@ class MarkovPositionTracker:
             shifted[-1] += remaining[-step:].sum() * weights[step - 1]
             moved += shifted
 
-        settled = self.estimate().confidence >= self.config.jump_confidence_gate
         jump = self.config.jump_probability_confident if settled else self.config.jump_probability
         moved = (1.0 - jump) * moved + jump / len(moved)
         return moved / moved.sum()
@@ -296,7 +295,8 @@ class MarkovPositionTracker:
         # nothing has been played yet.
         if salience.any() and salience.max() >= self.config.evidence_floor:
             self._frame_number += 1
-            prior = self._advance()
+            settled = self.estimate().confidence >= self.config.jump_confidence_gate
+            prior = self._advance(settled)
             log_likelihood = (self.templates @ salience) / self.config.temperature
             # Above the floor but below evidence_ceiling, still only partly
             # trust it -- ramps the observation's influence in linearly, so
@@ -305,9 +305,14 @@ class MarkovPositionTracker:
             span = max(self.config.evidence_ceiling - self.config.evidence_floor, 1e-9)
             evidence_weight = float(np.clip((salience.max() - self.config.evidence_floor) / span, 0.0, 1.0))
             log_posterior = np.log(np.maximum(prior, 1e-300)) + evidence_weight * log_likelihood
-            if self.config.search_ahead is not None:
-                # Keep the update local: nothing outside a window around the
-                # current estimate can gain probability this frame.
+            # The locality window exists to stop a *confident* tracker from
+            # being yanked to a repeated passage elsewhere on the page -- it
+            # must not also be what stops an *unsettled* one from ever
+            # finding a performer who started somewhere other than near the
+            # current guess (onset 0, on a cold session). So it only applies
+            # once settled; while still searching, evidence anywhere in the
+            # score can win.
+            if self.config.search_ahead is not None and settled:
                 center = int(np.argmax(self._log_belief))
                 lo = max(0, center - self.config.search_behind)
                 hi = center + self.config.search_ahead + 1

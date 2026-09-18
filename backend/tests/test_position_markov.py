@@ -217,21 +217,40 @@ def test_evidence_floor_matches_the_salience_estimators_actual_scale():
     assert salience.max() < MarkovConfig().evidence_floor
 
 
-def test_search_window_caps_how_far_one_frame_can_move_the_belief():
-    # 60 distinct onsets. One frame of audio that matches a far onset: with
-    # a tight window the belief cannot cross it in a single step; an
-    # unconstrained tracker jumps straight to the match.
+def test_search_window_caps_how_far_a_settled_tracker_can_jump_in_one_frame():
+    # 60 distinct onsets. Once the tracker is settled (confidently locked
+    # near onset 0), one frame that matches a far onset must not be able to
+    # snap it there in a single step -- that's what stops a confidently
+    # correct tracker from being yanked to a repeated passage elsewhere on
+    # the page by one coincidentally-matching frame.
     notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
     timeline = build_timeline(notes, tempo_bpm=120.0)
     one_far_frame = render([[midi_to_pitch(pitch_to_midi("C3") + 45)]], frames_each=1)
 
     windowed = MarkovPositionTracker(timeline, MarkovConfig(search_ahead=6, search_behind=2))
+    windowed.apply_hint(0, strength=0.999, width=0.05)  # settle it, as if locked from prior audio
+    assert windowed.estimate().confidence >= windowed.config.jump_confidence_gate
     windowed.observe(one_far_frame)
     assert windowed.estimate().index <= 6
 
     free = MarkovPositionTracker(timeline, MarkovConfig())
     free.observe(one_far_frame)
     assert free.estimate().index >= 40
+
+
+def test_search_window_does_not_block_a_cold_tracker_from_finding_a_far_start():
+    # The same window must NOT apply before the tracker has settled --
+    # otherwise a performer who starts playing far from wherever the
+    # tracker's uniform prior happens to center on could never be found.
+    # This is what lets "start tracking" mean "start anywhere on the page",
+    # not just "start at the top".
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+    one_far_frame = render([[midi_to_pitch(pitch_to_midi("C3") + 45)]], frames_each=1)
+
+    cold = MarkovPositionTracker(timeline, MarkovConfig(search_ahead=6, search_behind=2))
+    cold.observe(one_far_frame)
+    assert cold.estimate().index >= 40
 
 
 def test_jump_probability_of_zero_still_tracks_forward():

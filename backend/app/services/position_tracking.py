@@ -1,11 +1,13 @@
 """Ways of deciding where in a score a performance currently is.
 
 Several interchangeable strategies live here so they can be compared on the
-same input rather than argued about -- see scripts/evaluate_tracking.py,
-which scores each one against synthesized audio whose true position at
-every instant is known. `DEFAULT_METHOD` names the most accurate one; the
-others are kept because they fail in different ways and are worth
-re-measuring whenever the audio front-end changes.
+same input rather than argued about -- see
+`app.services.benchmark_eval.evaluate_tracking_methods`, which scores each
+one against a real recording aligned to the score (its true position isn't
+known exactly, but it's close enough to compare methods by). `DEFAULT_METHOD`
+names the most accurate one; the others are kept because they fail in
+different ways and are worth re-measuring whenever the audio front-end
+changes.
 
 Every tracker consumes fixed-size mono PCM frames and reports the index of
 the score onset (see score_timeline.py) it believes is sounding. They
@@ -335,8 +337,8 @@ class HmmSalienceTracker(SalienceTemplateTracker):
 
     name = "hmm-salience"
 
-    # All four constants below were chosen by sweeping them against the
-    # synthesized reference (scripts/evaluate_tracking.py), not by feel.
+    # All four constants below were chosen by sweeping them against real
+    # recordings (see benchmark_eval.py), not by feel.
 
     # Sharpens cosine similarity into a log-likelihood. Lower means the
     # observation dominates; higher lets the transition model smooth more.
