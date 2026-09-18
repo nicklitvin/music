@@ -297,10 +297,11 @@ LOCK_HOLD_FRAMES = 8
 
 
 def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *, seed_hint: bool = True,
-              measures: list[int] | None = None):
+              measures: list[int] | None = None, config=None):
+    config = config or LIVE_CONFIG
     if measures is None:
         measures = measure_ordinals(timeline)
-    tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
+    tracker = MarkovPositionTracker(timeline, config)
     if seed_hint:
         tracker.apply_hint(0, strength=0.9, width=3.0)
     reported = ReportedPosition(index=0, acquired=seed_hint)
@@ -310,7 +311,7 @@ def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *,
         if s < begin_sample or s > end_sample:
             continue
         estimate = tracker.observe(audio[s : s + HOP])
-        pos = reported.update(estimate.index, estimate.confidence >= LIVE_CONFIG.jump_confidence_gate)
+        pos = reported.update(estimate.index, estimate.confidence >= config.jump_confidence_gate)
         if positions:
             jumps.append(abs(pos - prev))
         if rms >= SILENCE_RMS_THRESHOLD:

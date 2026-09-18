@@ -25,9 +25,20 @@ router = APIRouter()
 LIVE_CONFIG = MarkovConfig(
     search_ahead=40,
     search_behind=10,
-    jump_probability=1e-7,
+    # Only applies while the tracker is still unsettled, where the job is
+    # to *find* the reader, not to hold a position: this is the mass spread
+    # uniformly over the score each frame, so it sets how fast belief can
+    # migrate to a distant hypothesis. It was 1e-7 -- tuned when a session
+    # was assumed to start at the top of a single page, where there is
+    # nowhere to migrate to. On a whole-sheet score (1000-2000 onsets) that
+    # starves the search. A settled tracker still uses
+    # jump_probability_confident, so none of this loosens steady tracking.
+    jump_probability=0.03,
     jump_probability_confident=1e-12,
-    temperature=0.12,
+    # Softer than the 0.12 this was, which over-sharpened single frames on
+    # real (noisy) recordings and let one bad frame outvote the accumulated
+    # evidence. Swept against whole-sheet scores with real ground truth.
+    temperature=0.25,
 )
 
 
