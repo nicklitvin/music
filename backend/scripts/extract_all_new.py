@@ -14,10 +14,7 @@ from app.services import oemer_engine, omr  # noqa: E402
 CONTENT = Path(__file__).resolve().parents[2] / "content" / "full"
 
 PIECES = [
-    "angel-thesis",
-    "melissa",
-    # "guren" is running separately (already kicked off before this batch existed).
-    "last-stardust",
+    # angel-thesis, melissa, guren, last-stardust already done.
     "departure",
     "sugar-song",
     "unravel",
