@@ -172,6 +172,37 @@ def align_recording(audio: np.ndarray, timeline: list[TimelineOnset]) -> Alignme
     )
 
 
+def detect_transposition(audio: np.ndarray, timeline: list[TimelineOnset],
+                         onset_samples: list[int] | None = None) -> tuple[int, float, float]:
+    """Semitone shift that best lines the recording's pitch-class profile up
+    with the score's: (shift, correlation at that shift, correlation at 0).
+
+    A sheet and a recording that are simply in different keys produce a
+    total tracking failure that looks exactly like a broken tracker -- no
+    template ever matches. Worth detecting explicitly so the benchmark can
+    say "this pair doesn't match" instead of silently scoring 0.
+    """
+    score_pc = np.zeros(12)
+    for onset in timeline:
+        for pitch in onset.pitches:
+            midi = pitch_to_midi(pitch)
+            if midi:
+                score_pc[midi % 12] += 1
+    if onset_samples is None:
+        onset_samples = detect_onsets(audio)
+    audio_pc = np.zeros(12)
+    for sample in onset_samples[::3]:  # every third onset is plenty for a histogram
+        for midi in pitches_at(audio, sample):
+            audio_pc[midi % 12] += 1
+    if not score_pc.any() or not audio_pc.any():
+        return 0, 0.0, 0.0
+    score_pc /= score_pc.sum()
+    audio_pc /= audio_pc.sum()
+    scores = [(float(np.corrcoef(score_pc, np.roll(audio_pc, -k))[0, 1]), k) for k in range(12)]
+    best_r, best_shift = max(scores)
+    return best_shift, best_r, scores[0][0]
+
+
 def truth_index_per_frame(onset_time: np.ndarray, frame_samples: list[int]) -> list[int]:
     return [
         max(0, min(len(onset_time) - 1, int(np.searchsorted(onset_time, s, side="right") - 1)))
@@ -422,6 +453,9 @@ class PieceEvaluation:
     matchedOnsets: int
     totalScoreOnsets: int
     lastMatchedTimeSeconds: float
+    # Semitones the recording sits away from the sheet's key; non-zero means
+    # the pair is not the same arrangement (see detect_transposition).
+    semitoneShift: int
     detection: dict
     tracking: dict
     livePath: dict
@@ -447,12 +481,22 @@ def evaluate_piece(audio: np.ndarray, timeline: list[TimelineOnset]) -> PieceEva
             "alignment (and everything below) may be unreliable"
         )
 
+    shift, best_r, same_key_r = detect_transposition(audio, timeline, alignment.onset_samples)
+    if shift and best_r - same_key_r > 0.2:
+        warnings.append(
+            f"recording appears to be {shift} semitones from the sheet's key (pitch-class match "
+            f"{best_r:.2f} there vs {same_key_r:.2f} in the sheet's own key) -- the sheet and the "
+            "recording are not the same arrangement, so every number below is measuring that, "
+            "not the tracker"
+        )
+
     return PieceEvaluation(
         durationSeconds=round(len(audio) / RATE, 1),
         detectedOnsets=alignment.detected_onsets,
         matchedOnsets=alignment.matched_onsets,
         totalScoreOnsets=len(timeline),
         lastMatchedTimeSeconds=round(alignment.last_matched_time_seconds, 1),
+        semitoneShift=shift,
         detection=evaluate_detection(frames, truth_index, timeline, alignment.end_sample),
         tracking=evaluate_tracking_methods(audio, frames, truth_index, timeline, alignment.end_sample),
         livePath=evaluate_live_path(audio, frames, truth_index, timeline, alignment),

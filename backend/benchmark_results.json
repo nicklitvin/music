@@ -1,148 +1,152 @@
 {
-  "generatedAt": "2026-09-18T12:36:37",
+  "generatedAt": "2026-09-18T15:39:07",
   "full": [
     {
       "slug": "aliez",
       "hasPerformance": true,
       "pagesScored": [
-        0
+        0,
+        1,
+        2,
+        3
       ],
       "durationSeconds": 291.4,
       "detectedOnsets": 2179,
-      "matchedOnsets": 353,
-      "totalScoreOnsets": 353,
-      "lastMatchedTimeSeconds": 69.5,
+      "matchedOnsets": 1570,
+      "totalScoreOnsets": 1582,
+      "lastMatchedTimeSeconds": 259.7,
+      "semitoneShift": 0,
       "detection": {
-        "scoredFrames": 920,
+        "scoredFrames": 3454,
         "exactPitch": {
-          "precision": 0.288,
-          "recall": 0.589,
-          "f1": 0.387
+          "precision": 0.305,
+          "recall": 0.567,
+          "f1": 0.397
         },
         "pitchClass": {
-          "precision": 0.491,
-          "recall": 0.799,
-          "f1": 0.608
+          "precision": 0.508,
+          "recall": 0.77,
+          "f1": 0.613
         },
-        "octaveErrorShareOfFalsePositives": 0.39,
-        "highestNoteExact": 0.233,
-        "highestNotePitchClass": 0.368
+        "octaveErrorShareOfFalsePositives": 0.404,
+        "highestNoteExact": 0.248,
+        "highestNotePitchClass": 0.398
       },
       "tracking": {
         "melody-pitch": {
-          "exact": 8.2,
-          "within1": 8.5,
-          "within2": 8.7,
-          "within3": 9.0,
-          "meanAbsoluteError": 157.97
+          "exact": 2.2,
+          "within1": 2.3,
+          "within2": 2.3,
+          "within3": 2.4,
+          "meanAbsoluteError": 750.54
         },
         "chroma-template": {
-          "exact": 0.7,
-          "within1": 2.9,
-          "within2": 3.5,
-          "within3": 4.3,
-          "meanAbsoluteError": 42.03
+          "exact": 0.2,
+          "within1": 0.8,
+          "within2": 0.9,
+          "within3": 1.2,
+          "meanAbsoluteError": 495.53
         },
         "salience-template": {
-          "exact": 14.8,
-          "within1": 24.5,
-          "within2": 27.4,
-          "within3": 29.2,
-          "meanAbsoluteError": 16.5
+          "exact": 3.9,
+          "within1": 6.5,
+          "within2": 7.3,
+          "within3": 7.8,
+          "meanAbsoluteError": 180.83
         },
         "hmm-salience": {
-          "exact": 26.4,
-          "within1": 53.9,
-          "within2": 67.1,
-          "within3": 74.9,
-          "meanAbsoluteError": 2.8
+          "exact": 19.4,
+          "within1": 40.3,
+          "within2": 51.7,
+          "within3": 58.3,
+          "meanAbsoluteError": 63.39
         },
         "markov-filter": {
-          "exact": 25.8,
-          "within1": 54.3,
-          "within2": 68.5,
-          "within3": 75.3,
-          "meanAbsoluteError": 8.78
+          "exact": 13.4,
+          "within1": 28.4,
+          "within2": 35.1,
+          "within3": 39.3,
+          "meanAbsoluteError": 356.57
         }
       },
       "livePath": {
         "playthrough": {
-          "finalOnset": 313,
-          "totalOnsets": 353,
-          "largestSingleFrameMove": 204,
-          "movesOverThreeOnsets": 4,
-          "meanAbsoluteError": 11.1,
-          "within3": 58.3,
-          "maxError": 223
+          "finalOnset": 1581,
+          "totalOnsets": 1582,
+          "largestSingleFrameMove": 1447,
+          "movesOverThreeOnsets": 23,
+          "meanAbsoluteError": 603.95,
+          "within3": 15.9,
+          "maxError": 1459
         },
         "startPoints": {
           "targetSeconds": 5.0,
           "results": [
             {
               "startSeconds": 2.4,
-              "locksAfterSeconds": 1.99
+              "locksAfterSeconds": 257.74
             },
             {
-              "startSeconds": 6.8,
-              "locksAfterSeconds": 4.18
+              "startSeconds": 20.6,
+              "locksAfterSeconds": 0.95
             },
             {
-              "startSeconds": 11.4,
-              "locksAfterSeconds": 1.58
-            },
-            {
-              "startSeconds": 16.2,
-              "locksAfterSeconds": 1.74
-            },
-            {
-              "startSeconds": 20.2,
-              "locksAfterSeconds": 0.97
-            },
-            {
-              "startSeconds": 24.6,
-              "locksAfterSeconds": 3.12
-            },
-            {
-              "startSeconds": 29.0,
-              "locksAfterSeconds": 0.59
-            },
-            {
-              "startSeconds": 33.5,
-              "locksAfterSeconds": 1.73
-            },
-            {
-              "startSeconds": 38.0,
-              "locksAfterSeconds": 0.62
-            },
-            {
-              "startSeconds": 42.2,
+              "startSeconds": 38.4,
               "locksAfterSeconds": 1.1
             },
             {
-              "startSeconds": 46.8,
-              "locksAfterSeconds": 1.27
+              "startSeconds": 57.1,
+              "locksAfterSeconds": 28.48
             },
             {
-              "startSeconds": 51.4,
-              "locksAfterSeconds": 0.8
+              "startSeconds": 75.1,
+              "locksAfterSeconds": 185.09
             },
             {
-              "startSeconds": 56.5,
-              "locksAfterSeconds": 0.86
+              "startSeconds": 92.2,
+              "locksAfterSeconds": 6.3
             },
             {
-              "startSeconds": 61.0,
-              "locksAfterSeconds": 0.58
+              "startSeconds": 110.4,
+              "locksAfterSeconds": 29.16
             },
             {
-              "startSeconds": 65.3,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 128.0,
+              "locksAfterSeconds": 5.66
+            },
+            {
+              "startSeconds": 146.2,
+              "locksAfterSeconds": 113.94
+            },
+            {
+              "startSeconds": 164.3,
+              "locksAfterSeconds": 0.74
+            },
+            {
+              "startSeconds": 183.1,
+              "locksAfterSeconds": 0.78
+            },
+            {
+              "startSeconds": 201.2,
+              "locksAfterSeconds": 1.03
+            },
+            {
+              "startSeconds": 220.1,
+              "locksAfterSeconds": 2.29
+            },
+            {
+              "startSeconds": 238.4,
+              "locksAfterSeconds": 2.3
+            },
+            {
+              "startSeconds": 255.7,
+              "locksAfterSeconds": 1.5
             }
           ],
           "lockedCount": 15,
-          "withinTarget": 15,
+          "withinTarget": 8,
           "total": 15,
-          "withinTargetPct": 100.0
+          "withinTargetPct": 53.3
         }
       },
       "warnings": []
@@ -151,144 +155,155 @@
       "slug": "angel-thesis",
       "hasPerformance": true,
       "pagesScored": [
-        0
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
       ],
       "durationSeconds": 297.6,
       "detectedOnsets": 2193,
-      "matchedOnsets": 141,
-      "totalScoreOnsets": 175,
-      "lastMatchedTimeSeconds": 19.2,
+      "matchedOnsets": 1768,
+      "totalScoreOnsets": 1782,
+      "lastMatchedTimeSeconds": 280.8,
+      "semitoneShift": 0,
       "detection": {
-        "scoredFrames": 230,
+        "scoredFrames": 3646,
         "exactPitch": {
-          "precision": 0.125,
-          "recall": 0.376,
-          "f1": 0.188
+          "precision": 0.274,
+          "recall": 0.532,
+          "f1": 0.361
         },
         "pitchClass": {
-          "precision": 0.303,
-          "recall": 0.593,
-          "f1": 0.401
+          "precision": 0.446,
+          "recall": 0.682,
+          "f1": 0.539
         },
-        "octaveErrorShareOfFalsePositives": 0.235,
-        "highestNoteExact": 0.126,
-        "highestNotePitchClass": 0.213
+        "octaveErrorShareOfFalsePositives": 0.336,
+        "highestNoteExact": 0.235,
+        "highestNotePitchClass": 0.38
       },
       "tracking": {
         "melody-pitch": {
-          "exact": 4.8,
-          "within1": 10.0,
-          "within2": 13.0,
-          "within3": 14.8,
-          "meanAbsoluteError": 25.93
+          "exact": 0.3,
+          "within1": 0.7,
+          "within2": 0.9,
+          "within3": 1.0,
+          "meanAbsoluteError": 555.06
         },
         "chroma-template": {
-          "exact": 0.4,
-          "within1": 0.9,
-          "within2": 3.0,
-          "within3": 4.3,
-          "meanAbsoluteError": 45.48
+          "exact": 0.1,
+          "within1": 0.6,
+          "within2": 1.0,
+          "within3": 1.3,
+          "meanAbsoluteError": 523.81
         },
         "salience-template": {
-          "exact": 4.3,
-          "within1": 11.7,
-          "within2": 18.7,
-          "within3": 25.7,
-          "meanAbsoluteError": 9.97
+          "exact": 5.4,
+          "within1": 10.3,
+          "within2": 12.3,
+          "within3": 13.7,
+          "meanAbsoluteError": 110.29
         },
         "hmm-salience": {
-          "exact": 3.0,
-          "within1": 10.0,
-          "within2": 14.3,
-          "within3": 17.0,
-          "meanAbsoluteError": 17.81
+          "exact": 15.4,
+          "within1": 32.2,
+          "within2": 40.9,
+          "within3": 47.1,
+          "meanAbsoluteError": 177.54
         },
         "markov-filter": {
-          "exact": 3.9,
-          "within1": 7.8,
-          "within2": 10.4,
-          "within3": 12.2,
-          "meanAbsoluteError": 31.14
+          "exact": 14.1,
+          "within1": 26.9,
+          "within2": 31.3,
+          "within3": 34.3,
+          "meanAbsoluteError": 339.32
         }
       },
       "livePath": {
         "playthrough": {
-          "finalOnset": 143,
-          "totalOnsets": 175,
-          "largestSingleFrameMove": 82,
-          "movesOverThreeOnsets": 4,
-          "meanAbsoluteError": 26.89,
-          "within3": 13.9,
-          "maxError": 82
+          "finalOnset": 1775,
+          "totalOnsets": 1782,
+          "largestSingleFrameMove": 1435,
+          "movesOverThreeOnsets": 40,
+          "meanAbsoluteError": 196.79,
+          "within3": 33.8,
+          "maxError": 1493
         },
         "startPoints": {
           "targetSeconds": 5.0,
           "results": [
             {
               "startSeconds": 1.9,
-              "locksAfterSeconds": 6.17
+              "locksAfterSeconds": 17.87
             },
             {
-              "startSeconds": 2.8,
-              "locksAfterSeconds": 5.26
+              "startSeconds": 19.9,
+              "locksAfterSeconds": 0.83
             },
             {
-              "startSeconds": 3.9,
-              "locksAfterSeconds": 4.22
+              "startSeconds": 40.3,
+              "locksAfterSeconds": 1.97
             },
             {
-              "startSeconds": 4.8,
-              "locksAfterSeconds": 4.41
+              "startSeconds": 59.7,
+              "locksAfterSeconds": 2.99
             },
             {
-              "startSeconds": 5.9,
-              "locksAfterSeconds": 1.84
+              "startSeconds": 80.8,
+              "locksAfterSeconds": 42.85
             },
             {
-              "startSeconds": 6.7,
-              "locksAfterSeconds": 2.87
+              "startSeconds": 100.7,
+              "locksAfterSeconds": 1.58
             },
             {
-              "startSeconds": 7.6,
-              "locksAfterSeconds": 1.95
+              "startSeconds": 119.1,
+              "locksAfterSeconds": 3.62
             },
             {
-              "startSeconds": 8.5,
-              "locksAfterSeconds": 1.3
+              "startSeconds": 138.4,
+              "locksAfterSeconds": 11.43
             },
             {
-              "startSeconds": 9.4,
-              "locksAfterSeconds": 0.53
+              "startSeconds": 157.9,
+              "locksAfterSeconds": 13.36
             },
             {
-              "startSeconds": 10.3,
-              "locksAfterSeconds": 0.77
+              "startSeconds": 178.0,
+              "locksAfterSeconds": 1.75
             },
             {
-              "startSeconds": 11.4,
-              "locksAfterSeconds": 0.58
+              "startSeconds": 197.0,
+              "locksAfterSeconds": 7.64
             },
             {
-              "startSeconds": 12.5,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 217.0,
+              "locksAfterSeconds": 4.49
             },
             {
-              "startSeconds": 13.4,
-              "locksAfterSeconds": 0.57
+              "startSeconds": 238.0,
+              "locksAfterSeconds": 3.46
             },
             {
-              "startSeconds": 14.4,
-              "locksAfterSeconds": null
+              "startSeconds": 257.7,
+              "locksAfterSeconds": 11.96
             },
             {
-              "startSeconds": 15.1,
-              "locksAfterSeconds": null
+              "startSeconds": 276.7,
+              "locksAfterSeconds": 2.37
             }
           ],
-          "lockedCount": 13,
-          "withinTarget": 11,
+          "lockedCount": 15,
+          "withinTarget": 9,
           "total": 15,
-          "withinTargetPct": 73.3
+          "withinTargetPct": 60.0
         }
       },
       "warnings": []
@@ -316,6 +331,7 @@
       "matchedOnsets": 1749,
       "totalScoreOnsets": 1855,
       "lastMatchedTimeSeconds": 331.8,
+      "semitoneShift": 0,
       "detection": {
         "scoredFrames": 4047,
         "exactPitch": {
@@ -464,6 +480,7 @@
       "matchedOnsets": 739,
       "totalScoreOnsets": 1042,
       "lastMatchedTimeSeconds": 110.2,
+      "semitoneShift": 0,
       "detection": {
         "scoredFrames": 1464,
         "exactPitch": {
@@ -618,6 +635,7 @@
       "matchedOnsets": 1588,
       "totalScoreOnsets": 1609,
       "lastMatchedTimeSeconds": 313.6,
+      "semitoneShift": 0,
       "detection": {
         "scoredFrames": 4006,
         "exactPitch": {
@@ -757,144 +775,154 @@
       "slug": "melissa",
       "hasPerformance": true,
       "pagesScored": [
-        0
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
       ],
       "durationSeconds": 304.0,
       "detectedOnsets": 1984,
-      "matchedOnsets": 138,
-      "totalScoreOnsets": 138,
-      "lastMatchedTimeSeconds": 46.8,
+      "matchedOnsets": 1478,
+      "totalScoreOnsets": 1536,
+      "lastMatchedTimeSeconds": 279.6,
+      "semitoneShift": 0,
       "detection": {
-        "scoredFrames": 379,
+        "scoredFrames": 3205,
         "exactPitch": {
-          "precision": 0.279,
-          "recall": 0.487,
-          "f1": 0.355
+          "precision": 0.23,
+          "recall": 0.417,
+          "f1": 0.296
         },
         "pitchClass": {
-          "precision": 0.391,
-          "recall": 0.621,
-          "f1": 0.48
+          "precision": 0.389,
+          "recall": 0.555,
+          "f1": 0.458
         },
-        "octaveErrorShareOfFalsePositives": 0.252,
-        "highestNoteExact": 0.198,
-        "highestNotePitchClass": 0.412
+        "octaveErrorShareOfFalsePositives": 0.279,
+        "highestNoteExact": 0.148,
+        "highestNotePitchClass": 0.279
       },
       "tracking": {
         "melody-pitch": {
-          "exact": 1.8,
-          "within1": 3.4,
-          "within2": 4.7,
-          "within3": 8.2,
-          "meanAbsoluteError": 31.94
+          "exact": 0.6,
+          "within1": 1.0,
+          "within2": 1.4,
+          "within3": 2.2,
+          "meanAbsoluteError": 527.5
         },
         "chroma-template": {
-          "exact": 2.4,
-          "within1": 7.9,
-          "within2": 11.1,
-          "within3": 13.5,
-          "meanAbsoluteError": 22.56
+          "exact": 0.3,
+          "within1": 0.9,
+          "within2": 1.3,
+          "within3": 1.6,
+          "meanAbsoluteError": 498.37
         },
         "salience-template": {
-          "exact": 31.4,
-          "within1": 51.5,
-          "within2": 59.9,
-          "within3": 65.7,
-          "meanAbsoluteError": 5.58
+          "exact": 3.7,
+          "within1": 6.6,
+          "within2": 7.8,
+          "within3": 8.5,
+          "meanAbsoluteError": 307.64
         },
         "hmm-salience": {
-          "exact": 31.1,
-          "within1": 55.7,
-          "within2": 62.3,
-          "within3": 65.7,
-          "meanAbsoluteError": 5.32
+          "exact": 8.5,
+          "within1": 15.4,
+          "within2": 17.5,
+          "within3": 18.6,
+          "meanAbsoluteError": 358.21
         },
         "markov-filter": {
-          "exact": 31.1,
-          "within1": 50.1,
-          "within2": 55.1,
-          "within3": 59.1,
-          "meanAbsoluteError": 7.17
+          "exact": 7.6,
+          "within1": 13.9,
+          "within2": 16.2,
+          "within3": 17.2,
+          "meanAbsoluteError": 408.0
         }
       },
       "livePath": {
         "playthrough": {
-          "finalOnset": 137,
-          "totalOnsets": 138,
-          "largestSingleFrameMove": 3,
-          "movesOverThreeOnsets": 0,
-          "meanAbsoluteError": 6.22,
-          "within3": 53.8,
-          "maxError": 33
+          "finalOnset": 1535,
+          "totalOnsets": 1536,
+          "largestSingleFrameMove": 1312,
+          "movesOverThreeOnsets": 3,
+          "meanAbsoluteError": 395.58,
+          "within3": 8.7,
+          "maxError": 1049
         },
         "startPoints": {
           "targetSeconds": 5.0,
           "results": [
             {
               "startSeconds": 2.9,
-              "locksAfterSeconds": 0.53
+              "locksAfterSeconds": 2.18
             },
             {
-              "startSeconds": 5.0,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 31.4,
+              "locksAfterSeconds": 1.19
             },
             {
-              "startSeconds": 9.6,
-              "locksAfterSeconds": 12.94
+              "startSeconds": 49.6,
+              "locksAfterSeconds": 1.51
             },
             {
-              "startSeconds": 13.2,
-              "locksAfterSeconds": 9.31
+              "startSeconds": 67.4,
+              "locksAfterSeconds": 29.95
             },
             {
-              "startSeconds": 15.5,
-              "locksAfterSeconds": 0.58
+              "startSeconds": 85.2,
+              "locksAfterSeconds": 12.17
             },
             {
-              "startSeconds": 18.7,
-              "locksAfterSeconds": 0.57
+              "startSeconds": 103.7,
+              "locksAfterSeconds": 15.01
             },
             {
-              "startSeconds": 21.6,
-              "locksAfterSeconds": 7.19
+              "startSeconds": 123.3,
+              "locksAfterSeconds": 48.24
             },
             {
-              "startSeconds": 28.2,
-              "locksAfterSeconds": 0.87
+              "startSeconds": 141.0,
+              "locksAfterSeconds": 30.57
             },
             {
-              "startSeconds": 30.3,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 159.9,
+              "locksAfterSeconds": 11.61
             },
             {
-              "startSeconds": 32.4,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 178.6,
+              "locksAfterSeconds": 4.4
             },
             {
-              "startSeconds": 34.5,
-              "locksAfterSeconds": 0.75
+              "startSeconds": 197.4,
+              "locksAfterSeconds": 1.45
             },
             {
-              "startSeconds": 36.8,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 216.8,
+              "locksAfterSeconds": 19.73
             },
             {
-              "startSeconds": 38.9,
-              "locksAfterSeconds": 0.58
+              "startSeconds": 234.2,
+              "locksAfterSeconds": 6.71
             },
             {
-              "startSeconds": 40.8,
-              "locksAfterSeconds": 1.06
+              "startSeconds": 253.1,
+              "locksAfterSeconds": 2.1
             },
             {
-              "startSeconds": 42.7,
-              "locksAfterSeconds": 0.67
+              "startSeconds": 275.5,
+              "locksAfterSeconds": null
             }
           ],
-          "lockedCount": 15,
-          "withinTarget": 12,
+          "lockedCount": 14,
+          "withinTarget": 6,
           "total": 15,
-          "withinTargetPct": 80.0
+          "withinTargetPct": 40.0
         }
       },
       "warnings": []
@@ -932,6 +960,7 @@
       "matchedOnsets": 1731,
       "totalScoreOnsets": 1738,
       "lastMatchedTimeSeconds": 258.8,
+      "semitoneShift": 11,
       "detection": {
         "scoredFrames": 3379,
         "exactPitch": {
@@ -1065,7 +1094,9 @@
           "withinTargetPct": 0.0
         }
       },
-      "warnings": []
+      "warnings": [
+        "recording appears to be 11 semitones from the sheet's key (pitch-class match 0.81 there vs -0.45 in the sheet's own key) -- the sheet and the recording are not the same arrangement, so every number below is measuring that, not the tracker"
+      ]
     },
     {
       "slug": "this-game",
@@ -1075,75 +1106,81 @@
       "slug": "unravel",
       "hasPerformance": true,
       "pagesScored": [
-        0
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
       ],
       "durationSeconds": 248.0,
       "detectedOnsets": 1792,
-      "matchedOnsets": 231,
-      "totalScoreOnsets": 244,
-      "lastMatchedTimeSeconds": 46.0,
+      "matchedOnsets": 1582,
+      "totalScoreOnsets": 1765,
+      "lastMatchedTimeSeconds": 235.6,
+      "semitoneShift": 0,
       "detection": {
-        "scoredFrames": 493,
+        "scoredFrames": 2948,
         "exactPitch": {
-          "precision": 0.283,
-          "recall": 0.529,
-          "f1": 0.369
+          "precision": 0.304,
+          "recall": 0.562,
+          "f1": 0.395
         },
         "pitchClass": {
-          "precision": 0.487,
-          "recall": 0.715,
-          "f1": 0.58
+          "precision": 0.515,
+          "recall": 0.757,
+          "f1": 0.613
         },
-        "octaveErrorShareOfFalsePositives": 0.368,
-        "highestNoteExact": 0.183,
-        "highestNotePitchClass": 0.377
+        "octaveErrorShareOfFalsePositives": 0.406,
+        "highestNoteExact": 0.212,
+        "highestNotePitchClass": 0.385
       },
       "tracking": {
         "melody-pitch": {
-          "exact": 5.9,
-          "within1": 6.7,
-          "within2": 7.1,
-          "within3": 8.3,
-          "meanAbsoluteError": 70.02
+          "exact": 0.6,
+          "within1": 1.1,
+          "within2": 1.7,
+          "within3": 2.4,
+          "meanAbsoluteError": 172.75
         },
         "chroma-template": {
-          "exact": 4.1,
-          "within1": 13.6,
-          "within2": 20.3,
-          "within3": 26.0,
-          "meanAbsoluteError": 36.39
+          "exact": 0.7,
+          "within1": 2.3,
+          "within2": 3.4,
+          "within3": 4.3,
+          "meanAbsoluteError": 657.62
         },
         "salience-template": {
-          "exact": 9.3,
-          "within1": 25.4,
-          "within2": 31.4,
-          "within3": 36.3,
-          "meanAbsoluteError": 36.18
+          "exact": 1.6,
+          "within1": 4.2,
+          "within2": 5.3,
+          "within3": 6.1,
+          "meanAbsoluteError": 767.43
         },
         "hmm-salience": {
-          "exact": 8.7,
-          "within1": 22.5,
-          "within2": 30.2,
-          "within3": 34.3,
-          "meanAbsoluteError": 23.03
+          "exact": 7.3,
+          "within1": 15.8,
+          "within2": 20.5,
+          "within3": 22.9,
+          "meanAbsoluteError": 414.72
         },
         "markov-filter": {
-          "exact": 12.6,
-          "within1": 25.6,
-          "within2": 34.5,
-          "within3": 38.7,
-          "meanAbsoluteError": 27.83
+          "exact": 7.2,
+          "within1": 13.8,
+          "within2": 17.8,
+          "within3": 20.2,
+          "meanAbsoluteError": 526.21
         }
       },
       "livePath": {
         "playthrough": {
-          "finalOnset": 216,
-          "totalOnsets": 244,
-          "largestSingleFrameMove": 152,
-          "movesOverThreeOnsets": 3,
-          "meanAbsoluteError": 26.63,
-          "within3": 36.5,
-          "maxError": 172
+          "finalOnset": 240,
+          "totalOnsets": 1765,
+          "largestSingleFrameMove": 1494,
+          "movesOverThreeOnsets": 42,
+          "meanAbsoluteError": 437.71,
+          "within3": 24.4,
+          "maxError": 1586
         },
         "startPoints": {
           "targetSeconds": 5.0,
@@ -1153,66 +1190,66 @@
               "locksAfterSeconds": 0.56
             },
             {
-              "startSeconds": 6.5,
-              "locksAfterSeconds": 0.53
+              "startSeconds": 24.2,
+              "locksAfterSeconds": 2.31
             },
             {
-              "startSeconds": 9.2,
-              "locksAfterSeconds": 6.86
+              "startSeconds": 40.8,
+              "locksAfterSeconds": 2.13
             },
             {
-              "startSeconds": 13.4,
-              "locksAfterSeconds": 2.88
+              "startSeconds": 58.2,
+              "locksAfterSeconds": 4.83
             },
             {
-              "startSeconds": 16.3,
-              "locksAfterSeconds": 3.25
+              "startSeconds": 74.2,
+              "locksAfterSeconds": 100.78
             },
             {
-              "startSeconds": 18.8,
-              "locksAfterSeconds": 0.94
+              "startSeconds": 90.5,
+              "locksAfterSeconds": 4.28
             },
             {
-              "startSeconds": 22.0,
-              "locksAfterSeconds": 0.59
+              "startSeconds": 104.9,
+              "locksAfterSeconds": 70.11
             },
             {
-              "startSeconds": 24.8,
-              "locksAfterSeconds": 0.76
+              "startSeconds": 120.8,
+              "locksAfterSeconds": 54.19
             },
             {
-              "startSeconds": 27.5,
-              "locksAfterSeconds": 2.24
+              "startSeconds": 135.6,
+              "locksAfterSeconds": 39.34
             },
             {
-              "startSeconds": 30.4,
-              "locksAfterSeconds": 0.53
+              "startSeconds": 150.6,
+              "locksAfterSeconds": 24.41
             },
             {
-              "startSeconds": 32.8,
-              "locksAfterSeconds": 9.48
+              "startSeconds": 166.5,
+              "locksAfterSeconds": 8.45
             },
             {
-              "startSeconds": 35.2,
-              "locksAfterSeconds": 4.29
+              "startSeconds": 182.5,
+              "locksAfterSeconds": 16.18
             },
             {
-              "startSeconds": 37.5,
-              "locksAfterSeconds": 1.99
+              "startSeconds": 198.0,
+              "locksAfterSeconds": 9.61
             },
             {
-              "startSeconds": 39.6,
-              "locksAfterSeconds": 2.83
+              "startSeconds": 214.1,
+              "locksAfterSeconds": 2.55
             },
             {
-              "startSeconds": 42.0,
-              "locksAfterSeconds": 1.4
+              "startSeconds": 231.4,
+              "locksAfterSeconds": null
             }
           ],
-          "lockedCount": 15,
-          "withinTarget": 13,
+          "lockedCount": 14,
+          "withinTarget": 6,
           "total": 15,
-          "withinTargetPct": 86.7
+          "withinTargetPct": 40.0
         }
       },
       "warnings": []

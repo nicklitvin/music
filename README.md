@@ -102,94 +102,161 @@ position within a few seconds. It writes `backend/benchmark_results.json`
 content). `GET /api/benchmarks` still serves it for local inspection, but
 nothing in the UI shows it -- these numbers live here instead.
 
+Every page of every sheet is OMR'd, not just page 0 -- `notes.json` is
+built by `scripts/extract_all_pages.py`, which runs one page per
+subprocess (oemer is memory-hungry and will OOM eventually) and is
+resumable, so a kill only loses the page in flight. This matters more than
+it sounds: see "why whole-sheet OMR" below.
+
 ```
 cd backend
+.venv\Scripts\python scripts\extract_all_pages.py       # OMR every page (hours)
 .venv\Scripts\python scripts\run_benchmarks.py          # everything
 .venv\Scripts\python scripts\run_benchmarks.py --only aliez
+.venv\Scripts\python scripts\run_benchmarks.py --page 0 # single page, for comparison
 ```
 
-### Latest results (2026-09-17), page 0 of each sheet, real recordings only
+### The metric: start anywhere
+
+**Start anywhere** is the product requirement all of this is in service of:
+the reader should be able to begin playing at an arbitrary point and have
+the page find them within a few seconds. As a number: from 15 start points
+per piece, a *cold* tracker (no seed at all) is fed audio from that point
+and we measure whether the reported position becomes correct and *stays*
+correct, and how fast.
+
+Three details make this measure the right thing:
+
+* **Start points are moments a note is actually struck** -- they are drawn
+  from the recording's detected onsets, not spread evenly over the clock.
+  Clock-spread starts land in rests, held chords and page turns, where
+  there is nothing to identify a position from, and the tracker gets
+  blamed for silence.
+* **Correct means the right bar** (+/- 1), held for 8 consecutive frames so
+  one lucky frame doesn't count. The requirement is really about staff
+  *lines*, but a line cannot be recovered reliably from OMR geometry (the
+  note rows of a grand staff don't cluster cleanly into systems -- a
+  y-clustering attempt found 14 "lines" on a guren page that visibly has
+  7). Bars come straight out of OMR and these sheets run 2-3 bars per
+  system, so "the right bar or the one next to it" is the closest robust
+  stand-in. The onset-count tolerance this replaced was badly behaved:
+  +/-3 onsets is ~1s of music in a sparse passage but ~0.15s in a dense one
+  (guren opens with 196 onsets in 10 seconds), so it silently demanded
+  near-frame-exact tracking exactly where tracking is hardest.
+* **"Eventually" vs "within 5s"** are reported separately. They are very
+  different numbers, and the gap between them is the current problem.
+
+### Latest results (2026-09-18), whole sheets, real recordings only
 
 Ground truth is recovered by aligning detected audio onsets to the score,
-so treat this as "roughly this good/bad", not exact. **Start anywhere**
-is the product requirement this is ultimately in service of: from 15 points
-spread across the recording, a *cold* tracker (no seed at all, matching
-what a real player dropping in partway through the page looks like) is
-fed audio from there and we measure whether it locks onto the correct
-position -- within +/-3 onsets, held for 8 consecutive frames -- and how
-fast. "Eventually" has no time limit (up to the end of the matched
-recording); "within 5s" is the actual target (see `evaluate_start_points`
-in `app/services/benchmark_eval.py`).
+so treat this as "roughly this good/bad", not exact. Every sheet is fully
+OMR'd (65 pages across the 8 pieces that have recordings).
 
-| Piece | Length | Onsets matched | Playthrough-from-top within ±3 | Start anywhere: locks eventually | Start anywhere: within 5s |
-|---|---|---|---|---|---|
-| melissa | 5:04 | 138/138 | 58% | 15/15 (100%) | 10/15 (67%) |
-| unravel | 4:08 | 231/244 | 41% | 15/15 (100%) | 10/15 (67%) |
-| aliez | 4:51 | 353/353 | 76% | 15/15 (100%) | 9/15 (60%) |
-| angel-thesis | 4:58 | 141/175 | 12% | 14/15 (93%) | 8/15 (53%) |
-| last-stardust | 6:33 | 190/195 | 25% | 7/15 (47%) | 6/15 (40%) |
-| sugar-song | 4:28 | 137/137 | 5% | 13/15 (87%) | 1/15 (7%) |
-| departure | 5:37 | 147/149 | 0% | 2/15 (13%) | 2/15 (13%) |
-| guren | 1:55 | 486/503 | 2% | 7/15 (47%) | 1/15 (7%) |
-| **overall** | | | | **88/120 (73%)** | **47/120 (39%)** |
+| Piece | Pages | Onsets | Length | Note detection F1 (exact / pitch-class) | Locks eventually | Locks within 5s |
+|---|---|---|---|---|---|---|
+| guren | 3 | 1042 | 1:55 | 0.35 / 0.58 | 15/15 (100%) | 11/15 (73%) |
+| angel-thesis | 11 | 1782 | 4:58 | 0.36 / 0.54 | 15/15 (100%) | 9/15 (60%) |
+| aliez | 4 | 1582 | 4:51 | 0.40 / 0.61 | 15/15 (100%) | 8/15 (53%) |
+| melissa | 10 | 1536 | 5:04 | 0.30 / 0.46 | 14/15 (93%) | 6/15 (40%) |
+| unravel | 6 | 1765 | 4:08 | 0.40 / 0.61 | 14/15 (93%) | 6/15 (40%) |
+| departure | 13 | 1855 | 5:37 | 0.28 / 0.48 | 14/15 (93%) | 5/15 (33%) |
+| last-stardust | 7 | 1609 | 6:33 | 0.26 / 0.46 | 10/15 (67%) | 3/15 (20%) |
+| sugar-song † | 11 | 1738 | 4:28 | 0.11 / 0.21 | 9/15 (60%) | 0/15 (0%) |
+| **overall** | **65** | | | | **106/120 (88%)** | **48/120 (40%)** |
 
-Not yet at the 80%-within-a-few-seconds target. Two production bugs were
-fixed as part of this round that were actively working against it (see
-`app/services/position_markov.py` and `app/routers/audio_ws.py`):
+† `sugar-song`'s recording is **11 semitones from its sheet's key** -- the
+two are not the same arrangement, so it measures that mismatch rather than
+the tracker. Pitch-class profiles correlate 0.81 when the recording is
+shifted a semitone and **-0.45** in the sheet's own key; every other piece
+matches at shift 0 (r 0.82-0.98). `evaluate_piece` now detects this and
+says so in `warnings` instead of silently reporting a broken tracker.
+Excluding it: **48/105 (46%)** within 5s, **97/105 (92%)** eventually.
 
-1. Every live session used to seed the tracker's belief at onset 0 and call
-   that "starting tracking" -- i.e. it assumed the reader always starts at
-   the top of the page. A performer starting elsewhere had to fight that
-   assumption instead of being found by it. Now the belief starts uniform
-   (no assumption at all) unless a caller explicitly says otherwise.
-2. `LIVE_CONFIG`'s locality window (limits how far one frame can move the
-   belief, to stop a confidently-correct tracker being yanked to a
-   repeated passage) used to apply unconditionally -- including to a
-   just-started, still-uncertain tracker, which made it structurally
-   impossible to ever find a start point outside the window. It now only
-   applies once the tracker is actually settled.
+### Why whole-sheet OMR
 
-Those fixes take "start anywhere" from *structurally can't work* to
-*works some of the time, per above*. Hyperparameter sweeps on top of that
-(temperature, evidence floor/ceiling, jump probability, skip parameters,
-analysis window size, octave-tolerant salience matching) did not move the
-numbers further -- the remaining gap tracks each piece's note-detection
-quality, not the position tracker's tuning:
+Testing used to run on page 0 only, and that quietly invalidated almost
+every number. One page covers the first minute or so of a five-minute
+recording, so detection and tracking were being scored against music that
+was not being played. Re-running with the whole sheet:
 
-- `melissa`, `unravel`, `aliez` (and to a lesser extent `angel-thesis`)
-  have real accompanying recordings whose note detection is usable enough
-  that a cold tracker *always* eventually finds the right spot; getting
-  there within 5s about half-to-two-thirds of the time is the actual
-  current ceiling for this group.
-- `departure`, `guren`, `sugar-song` have near-zero note-detection F1 (see
-  below) -- most likely page-0 OMR not matching what the recording
-  actually plays first -- so there usually isn't enough real signal to
-  lock onto at all, regardless of tracker tuning. Fixing this is an OMR/
-  note-detection problem, not a tracking-algorithm one.
-- `last-stardust` sits in between: locks less than half the time even
-  given the whole recording, worth root-causing specifically.
+| | page 0 only | whole sheet |
+|---|---|---|
+| guren, note detection F1 (exact) | 0.09 | **0.35** |
+| guren, playthrough within tolerance | 1.7% | **38.7%** |
+| guren, score covers | 73.5s of 115s | **110.2s of 115s** |
+| departure, note detection F1 (exact) | 0.01 | **0.28** |
+| last-stardust, score covers | **10%** of the recording | 80% |
+
+It also cut the other way, which is the more important lesson: pieces that
+looked *good* on page 0 were being scored over a tiny, easy slice.
+`aliez` scored 15/15 on page 0 -- over the first 24% of its recording --
+and 8/15 once the whole piece is in play. The page-0 numbers were not a
+baseline, they were a different (easier) question.
 
 `miiro`, `owari-no-sekai-kara`, `resonance`, `this-game`, and
 `weight-of-the-world` have sheets under `content/full/` but no
 accompanying recording, so they aren't scored.
 
+### What changed this round
+
+Four things, in order of how much they mattered:
+
+1. **Whole-sheet OMR** (above) -- fixed the ground truth itself.
+2. **The rate limiter no longer throttles first acquisition.**
+   `ReportedPosition` exists to stop the highlight twitching during steady
+   play, but it also applied before the tracker had ever locked on,
+   creeping two onsets at a time from a placeholder 0 towards a belief
+   that was already correct. Measured on guren, the belief locked in
+   0.6-1.0s at several start points while the reported position took
+   8-12s. It now follows the belief outright until the tracker is first
+   confident.
+3. **`LIVE_CONFIG` retuned for a whole-sheet search space.**
+   `jump_probability` 1e-7 -> 0.03 (the mass spread over the score each
+   frame, i.e. how fast belief can reach a distant hypothesis -- 1e-7 was
+   tuned back when a session assumed you start at the top of a single page,
+   where there is nowhere to migrate to) and `temperature` 0.12 -> 0.25.
+   Applies only while unsettled, so steady tracking is untouched.
+4. **No more assuming you start at the top**, and the locality window only
+   applies once settled -- previously it made finding a start point outside
+   the window structurally impossible.
+
+Worth recording: an earlier round concluded "hyperparameter sweeps are flat,
+we're at the tuning ceiling". That was measured against page-0 ground truth
+and was simply wrong -- the same sweep on whole-sheet data moved
+guren+departure from 33% to 53%. A flat sweep is evidence about the
+measurement as much as about the thing being measured.
+
 ## Known gaps (by design, for now)
 
-- **"Start anywhere" isn't at its 80%-within-5s target yet** (see above) --
-  47/120 tried start points across 8 real recordings. The tracker
-  eventually finds the right spot far more often (88/120) than it finds it
-  *fast*, so the next lever is likely speeding up acquisition (e.g. a
-  rhythm/timing signal alongside pitch, since isolated single notes are
-  often genuinely ambiguous on their own) rather than more Markov-parameter
-  tuning, which was swept without further gains this round.
-- **Real-recording tracking accuracy varies a lot by piece** (see above) --
-  good on `aliez`/`melissa`/`unravel`, poor on `departure`/`guren`/
-  `sugar-song` specifically because of near-zero note detection on those
-  recordings, likely a page-0 OMR mismatch. Needs root-causing per piece.
-- **Note detection** on real recordings tops out around F1 0.4 (exact
-  pitch) / 0.6 (pitch class) even on the good pieces -- octave errors are
-  the largest failure mode (`app/services/note_estimation.py`).
-- **OMR** (`oemer`) is CPU-only here and takes multiple minutes per page,
-  which is why `content/full/<piece>/notes.json` is generated once and
-  reused rather than re-run on every benchmark pass, and why only page 0
-  of each sheet is tested for now.
+- **"Start anywhere" is at 40% within 5s, against an 80% target** (see
+  above). The shape of the gap is specific and worth stating precisely: the
+  tracker almost always finds the right place (88% of start points lock
+  eventually, 92% excluding the mismatched-key piece) -- it just doesn't
+  find it *fast*. This is an acquisition-speed problem, not a "can't find
+  it" problem, and the two want different fixes.
+- **The next lever is probably rhythm, not more parameter tuning.** A
+  single struck note is genuinely ambiguous -- the same pitches recur all
+  over a piece -- so pitch evidence alone needs many frames to disambiguate.
+  Inter-onset timing is a strong, currently-unused signal: the score knows
+  how long each onset should last, and the recording's detected onsets give
+  the played rhythm directly. Matching those patterns should cut
+  acquisition time where pitch alone is slow.
+- **Slow acquisition is concentrated in dense, repetitive passages.** On
+  guren the failing start points are all in the first ~40s, where the
+  opening riff repeats and the score runs ~20 onsets/second; the tracker
+  cannot tell which repetition it is hearing until the music moves on.
+  Some of this is irreducible ambiguity rather than a fixable defect.
+- **Note detection** on real recordings runs F1 0.26-0.40 (exact pitch) /
+  0.46-0.61 (pitch class) -- octave errors are the largest failure mode
+  (`app/services/note_estimation.py`). Better detection would lift every
+  number above it.
+- **`sugar-song` needs a matching recording** -- its current one is a
+  semitone off the sheet, so it is not testing anything useful. Either
+  source a recording of that arrangement or transpose one. (Making the
+  tracker itself transposition-robust is a plausible *feature* -- detect
+  the offset at INIT and shift the templates -- but it is not why the
+  benchmark is red.)
+- **OMR** (`oemer`) is CPU-only here and takes ~5 minutes per page, so
+  `content/full/<piece>/notes.json` is generated once by
+  `scripts/extract_all_pages.py` (~5.5 hours for all 65 pages) and reused
+  rather than re-run on every benchmark pass.
