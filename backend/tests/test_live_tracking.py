@@ -77,10 +77,25 @@ def test_small_forward_steps_pass_through():
 
 
 def test_a_single_far_target_cannot_teleport_the_highlight():
-    reported = ReportedPosition(index=5, step=2, confirm=8)
+    # `acquired` = the tracker has already settled somewhere once, so there
+    # is an established position worth protecting.
+    reported = ReportedPosition(index=5, step=2, confirm=8, acquired=True)
     # One frame says "onset 200"; the highlight creeps, it does not jump.
     assert reported.update(200) == 7
     assert reported.update(6) == 6  # and snaps back when the belief returns
+
+
+def test_before_the_first_lock_the_report_follows_the_belief_outright():
+    # While still acquiring there is nothing on screen worth protecting --
+    # creeping two onsets at a time towards a belief that already knows the
+    # answer just shows the reader a place the model knows is wrong.
+    reported = ReportedPosition(index=0, step=2)
+    assert reported.update(800) == 800
+
+    # The first confident frame hands control to the rate limiter, and from
+    # then on a far-off single frame can only creep.
+    assert reported.update(802, settled=True) == 802
+    assert reported.update(1500) == 804
 
 
 def test_a_consistently_reported_jump_is_eventually_taken():
@@ -96,7 +111,7 @@ def test_set_moves_immediately():
 
 
 def test_backward_creep_is_capped():
-    reported = ReportedPosition(index=20, back=3, confirm=8)
+    reported = ReportedPosition(index=20, back=3, confirm=8, acquired=True)
     assert reported.update(0) == 17
 
 

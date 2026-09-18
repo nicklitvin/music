@@ -44,15 +44,30 @@ class ReportedPosition:
     click) sets the position outright.
     """
 
-    def __init__(self, index: int = 0, step: int = 2, back: int = 3, confirm: int = 12):
+    def __init__(self, index: int = 0, step: int = 2, back: int = 3, confirm: int = 12,
+                 acquired: bool = False):
         self.index = index
         self._step = step
         self._back = back
         self._confirm = confirm
         self._pending: int | None = None
         self._pending_run = 0
+        self._acquired = acquired
 
-    def update(self, target: int) -> int:
+    def update(self, target: int, settled: bool = False) -> int:
+        # Before the tracker has ever settled there is no established
+        # position to protect: the reported index is still the placeholder
+        # it was constructed with, and creeping towards the belief two
+        # onsets at a time just means showing the reader a spot the model
+        # already knows is wrong -- for up to ten seconds, on a score with
+        # a few thousand onsets. So during acquisition the report follows
+        # the belief outright, and the rate limiter takes over from the
+        # first time the tracker is confident.
+        if not self._acquired:
+            self._acquired = settled
+            self.index = target
+            return self.index
+
         delta = target - self.index
         if -self._back <= delta <= self._step:
             self.index = target
@@ -78,12 +93,15 @@ class ReportedPosition:
         self.index = index
         self._pending = None
         self._pending_run = 0
+        # The reader just said where they are, so there is now a position
+        # worth protecting even if the tracker isn't confident yet.
+        self._acquired = True
 
 
 class _Session:
-    def __init__(self, tracker: MarkovPositionTracker, start_index: int) -> None:
+    def __init__(self, tracker: MarkovPositionTracker, start_index: int, acquired: bool) -> None:
         self.tracker = tracker
-        self.reported = ReportedPosition(index=start_index)
+        self.reported = ReportedPosition(index=start_index, acquired=acquired)
 
 
 @router.websocket("/ws/track-audio")
@@ -147,7 +165,8 @@ async def track_audio(websocket: WebSocket) -> None:
                 frame = np.frombuffer(chunk[:usable], dtype="<i2").astype(np.float64)
                 estimate = session.tracker.observe(frame)
                 response["type"] = "POSITION"
-                response["onsetIndex"] = session.reported.update(estimate.index)
+                settled = estimate.confidence >= LIVE_CONFIG.jump_confidence_gate
+                response["onsetIndex"] = session.reported.update(estimate.index, settled)
                 response["positionConfidence"] = round(estimate.confidence, 3)
 
             await websocket.send_json(response)
@@ -182,7 +201,7 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
             # to be at the top.
             start_index = max(0, min(int(raw_start), len(timeline) - 1))
             tracker.apply_hint(start_index, strength=0.9, width=3.0)
-        return _Session(tracker, start_index)
+        return _Session(tracker, start_index, acquired=raw_start is not None)
 
     if kind == "HINT" and session is not None:
         try:

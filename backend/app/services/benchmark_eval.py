@@ -260,24 +260,64 @@ def evaluate_tracking_methods(audio, frames, truth_index, timeline: list[Timelin
     return results
 
 
-def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *, seed_hint: bool = True):
+def measure_ordinals(timeline: list[TimelineOnset]) -> list[int]:
+    """A globally increasing bar number per onset.
+
+    OMR numbers measures from 1 again on every page, so (pageIndex,
+    measureIndex) has to be ranked in reading order to get something
+    comparable across a whole multi-page score.
+    """
+    ordinals: list[int] = []
+    seen: dict[tuple[int, int], int] = {}
+    for onset in timeline:
+        note = onset.notes[0]
+        key = (note.pageIndex, note.measureIndex)
+        if key not in seen:
+            seen[key] = len(seen)
+        ordinals.append(seen[key])
+    return ordinals
+
+
+# How far off the reported bar may be and still count as showing the reader
+# the right place. The product requirement is phrased in *lines* (staff
+# systems), but a line can't be recovered reliably from OMR geometry -- the
+# note rows on a grand staff don't cluster cleanly into systems. Bars do
+# come straight out of OMR, and these sheets run ~2-3 bars per system, so
+# "the right bar or the one next to it" is the closest robust stand-in for
+# "the right line".
+#
+# The onset-count tolerance this replaces was badly behaved: +/-3 onsets is
+# ~1s of music in a sparse passage but ~0.15s in a dense one (guren opens
+# with 196 onsets in 10 seconds), so it silently demanded near-frame-exact
+# tracking exactly where tracking is hardest.
+LOCK_MEASURE_TOLERANCE = 1
+# Frames the reported position must stay right before it counts as a lock,
+# so one lucky frame isn't mistaken for having found the place.
+LOCK_HOLD_FRAMES = 8
+
+
+def _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, *, seed_hint: bool = True,
+              measures: list[int] | None = None):
+    if measures is None:
+        measures = measure_ordinals(timeline)
     tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
     if seed_hint:
         tracker.apply_hint(0, strength=0.9, width=3.0)
-    reported = ReportedPosition(index=0)
+    reported = ReportedPosition(index=0, acquired=seed_hint)
     positions, jumps, errors = [], [], []
     prev, run, lock = 0, 0, None
     for (_, rms, s), ti in zip(frames, truth_index):
         if s < begin_sample or s > end_sample:
             continue
-        pos = reported.update(tracker.observe(audio[s : s + HOP]).index)
+        estimate = tracker.observe(audio[s : s + HOP])
+        pos = reported.update(estimate.index, estimate.confidence >= LIVE_CONFIG.jump_confidence_gate)
         if positions:
             jumps.append(abs(pos - prev))
         if rms >= SILENCE_RMS_THRESHOLD:
             errors.append(abs(pos - ti))
-        if lock is None and abs(pos - ti) <= 3:
+        if lock is None and abs(measures[pos] - measures[ti]) <= LOCK_MEASURE_TOLERANCE:
             run += 1
-            if run >= 8:
+            if run >= LOCK_HOLD_FRAMES:
                 lock = (s - begin_sample) / RATE
         elif lock is None:
             run = 0
@@ -344,18 +384,19 @@ def evaluate_start_points(
     actual product requirement) means as a number: for each start point, a
     fresh tracker is fed audio beginning there with no hint at all, and we
     record how long -- if ever -- it takes for the reported position to
-    become correct and *stay* correct (a single lucky frame doesn't count;
-    see `_live_run`'s own lock logic, which requires 8 consecutive frames
-    within +/-3 onsets of ground truth -- close enough to be "the right
-    spot on the page" per this module's convention throughout).
+    become correct and *stay* correct: `LOCK_HOLD_FRAMES` consecutive
+    frames reported within `LOCK_MEASURE_TOLERANCE` bars of ground truth,
+    so one lucky frame is not mistaken for having found the place.
     """
     end_sample = alignment.end_sample
     if end_sample / RATE < 8.0:
         return {"targetSeconds": target_seconds, "results": [], "lockedCount": 0, "withinTarget": 0, "total": 0, "withinTargetPct": None}
 
+    measures = measure_ordinals(timeline)
     results = []
     for begin_sample in start_point_samples(alignment, end_sample, n_starts):
-        _, _, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample, seed_hint=False)
+        _, _, _, lock = _live_run(audio, frames, truth_index, timeline, end_sample, begin_sample,
+                                  seed_hint=False, measures=measures)
         results.append({
             "startSeconds": round(begin_sample / RATE, 1),
             "locksAfterSeconds": round(lock, 2) if lock is not None else None,
