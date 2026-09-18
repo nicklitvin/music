@@ -1,5 +1,3200 @@
 {
-  "generatedAt": "2026-09-17T19:03:39",
-  "full": [],
-  "samples": []
+  "generatedAt": "2026-09-17T21:46:41",
+  "full": [
+    {
+      "slug": "aliez",
+      "hasPerformance": true,
+      "durationSeconds": 291.4,
+      "detectedOnsets": 2179,
+      "matchedOnsets": 353,
+      "totalScoreOnsets": 353,
+      "lastMatchedTimeSeconds": 69.5,
+      "detection": {
+        "scoredFrames": 920,
+        "exactPitch": {
+          "precision": 0.288,
+          "recall": 0.589,
+          "f1": 0.387
+        },
+        "pitchClass": {
+          "precision": 0.491,
+          "recall": 0.799,
+          "f1": 0.608
+        },
+        "octaveErrorShareOfFalsePositives": 0.39,
+        "highestNoteExact": 0.233,
+        "highestNotePitchClass": 0.368
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 8.2,
+          "within1": 8.5,
+          "within2": 8.7,
+          "within3": 9.0,
+          "meanAbsoluteError": 157.97
+        },
+        "chroma-template": {
+          "exact": 0.7,
+          "within1": 2.9,
+          "within2": 3.5,
+          "within3": 4.3,
+          "meanAbsoluteError": 42.03
+        },
+        "salience-template": {
+          "exact": 14.8,
+          "within1": 24.5,
+          "within2": 27.4,
+          "within3": 29.2,
+          "meanAbsoluteError": 16.5
+        },
+        "hmm-salience": {
+          "exact": 26.4,
+          "within1": 53.9,
+          "within2": 67.1,
+          "within3": 74.9,
+          "meanAbsoluteError": 2.8
+        },
+        "markov-filter": {
+          "exact": 25.8,
+          "within1": 54.3,
+          "within2": 68.5,
+          "within3": 75.3,
+          "meanAbsoluteError": 8.78
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 348,
+          "totalOnsets": 353,
+          "largestSingleFrameMove": 3,
+          "movesOverThreeOnsets": 0,
+          "meanAbsoluteError": 2.66,
+          "within3": 76.2,
+          "maxError": 15
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 2.3,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 5.0,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": 17.9,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 50,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "angel-thesis",
+      "hasPerformance": true,
+      "durationSeconds": 297.6,
+      "detectedOnsets": 2193,
+      "matchedOnsets": 141,
+      "totalScoreOnsets": 175,
+      "lastMatchedTimeSeconds": 19.2,
+      "detection": {
+        "scoredFrames": 230,
+        "exactPitch": {
+          "precision": 0.125,
+          "recall": 0.376,
+          "f1": 0.188
+        },
+        "pitchClass": {
+          "precision": 0.303,
+          "recall": 0.593,
+          "f1": 0.401
+        },
+        "octaveErrorShareOfFalsePositives": 0.235,
+        "highestNoteExact": 0.126,
+        "highestNotePitchClass": 0.213
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 4.8,
+          "within1": 10.0,
+          "within2": 13.0,
+          "within3": 14.8,
+          "meanAbsoluteError": 25.93
+        },
+        "chroma-template": {
+          "exact": 0.4,
+          "within1": 0.9,
+          "within2": 3.0,
+          "within3": 4.3,
+          "meanAbsoluteError": 45.48
+        },
+        "salience-template": {
+          "exact": 4.3,
+          "within1": 11.7,
+          "within2": 18.7,
+          "within3": 25.7,
+          "meanAbsoluteError": 9.97
+        },
+        "hmm-salience": {
+          "exact": 3.0,
+          "within1": 10.0,
+          "within2": 14.3,
+          "within3": 17.0,
+          "meanAbsoluteError": 17.81
+        },
+        "markov-filter": {
+          "exact": 3.9,
+          "within1": 7.8,
+          "within2": 10.4,
+          "within3": 12.2,
+          "meanAbsoluteError": 31.14
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 143,
+          "totalOnsets": 175,
+          "largestSingleFrameMove": 9,
+          "movesOverThreeOnsets": 1,
+          "meanAbsoluteError": 53.03,
+          "within3": 3.5,
+          "maxError": 90
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 9
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "departure",
+      "hasPerformance": true,
+      "durationSeconds": 337.1,
+      "detectedOnsets": 2428,
+      "matchedOnsets": 147,
+      "totalScoreOnsets": 149,
+      "lastMatchedTimeSeconds": 322.3,
+      "detection": {
+        "scoredFrames": 3939,
+        "exactPitch": {
+          "precision": 0.007,
+          "recall": 0.038,
+          "f1": 0.012
+        },
+        "pitchClass": {
+          "precision": 0.127,
+          "recall": 0.401,
+          "f1": 0.193
+        },
+        "octaveErrorShareOfFalsePositives": 0.124,
+        "highestNoteExact": 0.015,
+        "highestNotePitchClass": 0.116
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 0.2,
+          "within1": 0.3,
+          "within2": 0.4,
+          "within3": 0.5,
+          "meanAbsoluteError": 125.94
+        },
+        "chroma-template": {
+          "exact": 0.7,
+          "within1": 0.7,
+          "within2": 0.8,
+          "within3": 0.8,
+          "meanAbsoluteError": 132.95
+        },
+        "salience-template": {
+          "exact": 0.7,
+          "within1": 0.7,
+          "within2": 0.8,
+          "within3": 0.8,
+          "meanAbsoluteError": 133.96
+        },
+        "hmm-salience": {
+          "exact": 0.0,
+          "within1": 0.2,
+          "within2": 0.3,
+          "within3": 0.3,
+          "meanAbsoluteError": 83.04
+        },
+        "markov-filter": {
+          "exact": 0.0,
+          "within1": 0.1,
+          "within2": 0.1,
+          "within3": 0.2,
+          "meanAbsoluteError": 82.65
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 142,
+          "totalOnsets": 149,
+          "largestSingleFrameMove": 3,
+          "movesOverThreeOnsets": 0,
+          "meanAbsoluteError": 128.71,
+          "within3": 0.3,
+          "maxError": 148
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 311.2,
+            "largestMoveAfterLock": 2
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 301.2,
+            "largestMoveAfterLock": 2
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": 291.2,
+            "largestMoveAfterLock": 2
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": 281.2,
+            "largestMoveAfterLock": 2
+          },
+          {
+            "startSeconds": 50,
+            "locksAfterSeconds": 271.2,
+            "largestMoveAfterLock": 2
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "guren",
+      "hasPerformance": true,
+      "durationSeconds": 114.7,
+      "detectedOnsets": 779,
+      "matchedOnsets": 486,
+      "totalScoreOnsets": 503,
+      "lastMatchedTimeSeconds": 73.5,
+      "detection": {
+        "scoredFrames": 988,
+        "exactPitch": {
+          "precision": 0.059,
+          "recall": 0.196,
+          "f1": 0.091
+        },
+        "pitchClass": {
+          "precision": 0.176,
+          "recall": 0.368,
+          "f1": 0.238
+        },
+        "octaveErrorShareOfFalsePositives": 0.13,
+        "highestNoteExact": 0.03,
+        "highestNotePitchClass": 0.137
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 0.5,
+          "within1": 1.5,
+          "within2": 2.7,
+          "within3": 3.4,
+          "meanAbsoluteError": 144.83
+        },
+        "chroma-template": {
+          "exact": 0.8,
+          "within1": 2.3,
+          "within2": 2.6,
+          "within3": 3.3,
+          "meanAbsoluteError": 136.64
+        },
+        "salience-template": {
+          "exact": 3.2,
+          "within1": 4.6,
+          "within2": 5.7,
+          "within3": 7.1,
+          "meanAbsoluteError": 46.33
+        },
+        "hmm-salience": {
+          "exact": 0.0,
+          "within1": 0.2,
+          "within2": 0.5,
+          "within3": 0.8,
+          "meanAbsoluteError": 137.69
+        },
+        "markov-filter": {
+          "exact": 0.3,
+          "within1": 0.5,
+          "within2": 0.6,
+          "within3": 0.6,
+          "meanAbsoluteError": 151.99
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 290,
+          "totalOnsets": 503,
+          "largestSingleFrameMove": 3,
+          "movesOverThreeOnsets": 0,
+          "meanAbsoluteError": 65.45,
+          "within3": 5.9,
+          "maxError": 213
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 10.1,
+            "largestMoveAfterLock": 7
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 23.4,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 50,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "last-stardust",
+      "hasPerformance": true,
+      "durationSeconds": 393.3,
+      "detectedOnsets": 2521,
+      "matchedOnsets": 190,
+      "totalScoreOnsets": 195,
+      "lastMatchedTimeSeconds": 37.6,
+      "detection": {
+        "scoredFrames": 426,
+        "exactPitch": {
+          "precision": 0.192,
+          "recall": 0.383,
+          "f1": 0.256
+        },
+        "pitchClass": {
+          "precision": 0.361,
+          "recall": 0.539,
+          "f1": 0.432
+        },
+        "octaveErrorShareOfFalsePositives": 0.27,
+        "highestNoteExact": 0.19,
+        "highestNotePitchClass": 0.265
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 2.1,
+          "within1": 4.7,
+          "within2": 7.5,
+          "within3": 13.8,
+          "meanAbsoluteError": 46.09
+        },
+        "chroma-template": {
+          "exact": 14.6,
+          "within1": 16.4,
+          "within2": 17.4,
+          "within3": 24.2,
+          "meanAbsoluteError": 62.29
+        },
+        "salience-template": {
+          "exact": 12.2,
+          "within1": 14.1,
+          "within2": 16.4,
+          "within3": 22.8,
+          "meanAbsoluteError": 19.36
+        },
+        "hmm-salience": {
+          "exact": 18.1,
+          "within1": 20.0,
+          "within2": 20.9,
+          "within3": 24.2,
+          "meanAbsoluteError": 31.94
+        },
+        "markov-filter": {
+          "exact": 18.1,
+          "within1": 20.7,
+          "within2": 22.5,
+          "within3": 26.8,
+          "meanAbsoluteError": 33.71
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 130,
+          "totalOnsets": 195,
+          "largestSingleFrameMove": 3,
+          "movesOverThreeOnsets": 0,
+          "meanAbsoluteError": 31.06,
+          "within3": 24.6,
+          "maxError": 75
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 0.6,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "melissa",
+      "hasPerformance": true,
+      "durationSeconds": 304.0,
+      "detectedOnsets": 1984,
+      "matchedOnsets": 138,
+      "totalScoreOnsets": 138,
+      "lastMatchedTimeSeconds": 46.8,
+      "detection": {
+        "scoredFrames": 379,
+        "exactPitch": {
+          "precision": 0.279,
+          "recall": 0.487,
+          "f1": 0.355
+        },
+        "pitchClass": {
+          "precision": 0.391,
+          "recall": 0.621,
+          "f1": 0.48
+        },
+        "octaveErrorShareOfFalsePositives": 0.252,
+        "highestNoteExact": 0.198,
+        "highestNotePitchClass": 0.412
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 1.8,
+          "within1": 3.4,
+          "within2": 4.7,
+          "within3": 8.2,
+          "meanAbsoluteError": 31.94
+        },
+        "chroma-template": {
+          "exact": 2.4,
+          "within1": 7.9,
+          "within2": 11.1,
+          "within3": 13.5,
+          "meanAbsoluteError": 22.56
+        },
+        "salience-template": {
+          "exact": 31.4,
+          "within1": 51.5,
+          "within2": 59.9,
+          "within3": 65.7,
+          "meanAbsoluteError": 5.58
+        },
+        "hmm-salience": {
+          "exact": 31.1,
+          "within1": 55.7,
+          "within2": 62.3,
+          "within3": 65.7,
+          "meanAbsoluteError": 5.32
+        },
+        "markov-filter": {
+          "exact": 31.1,
+          "within1": 50.1,
+          "within2": 55.1,
+          "within3": 59.1,
+          "meanAbsoluteError": 7.17
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 137,
+          "totalOnsets": 138,
+          "largestSingleFrameMove": 3,
+          "movesOverThreeOnsets": 0,
+          "meanAbsoluteError": 5.85,
+          "within3": 58.3,
+          "maxError": 34
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 0.6,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 4.5,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": 11.8,
+            "largestMoveAfterLock": 2
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "miiro",
+      "hasPerformance": false
+    },
+    {
+      "slug": "owari-no-sekai-kara",
+      "hasPerformance": false
+    },
+    {
+      "slug": "resonance",
+      "hasPerformance": false
+    },
+    {
+      "slug": "sugar-song",
+      "hasPerformance": true,
+      "durationSeconds": 267.5,
+      "detectedOnsets": 1895,
+      "matchedOnsets": 137,
+      "totalScoreOnsets": 137,
+      "lastMatchedTimeSeconds": 180.4,
+      "detection": {
+        "scoredFrames": 2377,
+        "exactPitch": {
+          "precision": 0.06,
+          "recall": 0.307,
+          "f1": 0.1
+        },
+        "pitchClass": {
+          "precision": 0.149,
+          "recall": 0.475,
+          "f1": 0.226
+        },
+        "octaveErrorShareOfFalsePositives": 0.121,
+        "highestNoteExact": 0.117,
+        "highestNotePitchClass": 0.195
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 1.1,
+          "within1": 1.3,
+          "within2": 1.5,
+          "within3": 1.6,
+          "meanAbsoluteError": 33.92
+        },
+        "chroma-template": {
+          "exact": 0.2,
+          "within1": 0.9,
+          "within2": 1.1,
+          "within3": 1.3,
+          "meanAbsoluteError": 83.11
+        },
+        "salience-template": {
+          "exact": 0.0,
+          "within1": 1.0,
+          "within2": 1.1,
+          "within3": 1.8,
+          "meanAbsoluteError": 112.7
+        },
+        "hmm-salience": {
+          "exact": 0.0,
+          "within1": 1.6,
+          "within2": 1.8,
+          "within3": 4.0,
+          "meanAbsoluteError": 50.99
+        },
+        "markov-filter": {
+          "exact": 3.3,
+          "within1": 4.1,
+          "within2": 4.3,
+          "within3": 4.8,
+          "meanAbsoluteError": 52.26
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 122,
+          "totalOnsets": 137,
+          "largestSingleFrameMove": 13,
+          "movesOverThreeOnsets": 1,
+          "meanAbsoluteError": 116.34,
+          "within3": 3.4,
+          "maxError": 136
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 13
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 169.0,
+            "largestMoveAfterLock": 1
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 0.6,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": 149.0,
+            "largestMoveAfterLock": 1
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": 0.6,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 50,
+            "locksAfterSeconds": 0.9,
+            "largestMoveAfterLock": 12
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "this-game",
+      "hasPerformance": false
+    },
+    {
+      "slug": "unravel",
+      "hasPerformance": true,
+      "durationSeconds": 248.0,
+      "detectedOnsets": 1792,
+      "matchedOnsets": 231,
+      "totalScoreOnsets": 244,
+      "lastMatchedTimeSeconds": 46.0,
+      "detection": {
+        "scoredFrames": 493,
+        "exactPitch": {
+          "precision": 0.283,
+          "recall": 0.529,
+          "f1": 0.369
+        },
+        "pitchClass": {
+          "precision": 0.487,
+          "recall": 0.715,
+          "f1": 0.58
+        },
+        "octaveErrorShareOfFalsePositives": 0.368,
+        "highestNoteExact": 0.183,
+        "highestNotePitchClass": 0.377
+      },
+      "tracking": {
+        "melody-pitch": {
+          "exact": 5.9,
+          "within1": 6.7,
+          "within2": 7.1,
+          "within3": 8.3,
+          "meanAbsoluteError": 70.02
+        },
+        "chroma-template": {
+          "exact": 4.1,
+          "within1": 13.6,
+          "within2": 20.3,
+          "within3": 26.0,
+          "meanAbsoluteError": 36.39
+        },
+        "salience-template": {
+          "exact": 9.3,
+          "within1": 25.4,
+          "within2": 31.4,
+          "within3": 36.3,
+          "meanAbsoluteError": 36.18
+        },
+        "hmm-salience": {
+          "exact": 8.7,
+          "within1": 22.5,
+          "within2": 30.2,
+          "within3": 34.3,
+          "meanAbsoluteError": 23.03
+        },
+        "markov-filter": {
+          "exact": 12.6,
+          "within1": 25.6,
+          "within2": 34.5,
+          "within3": 38.7,
+          "meanAbsoluteError": 27.83
+        }
+      },
+      "livePath": {
+        "playthrough": {
+          "finalOnset": 242,
+          "totalOnsets": 244,
+          "largestSingleFrameMove": 9,
+          "movesOverThreeOnsets": 1,
+          "meanAbsoluteError": 14.59,
+          "within3": 44.0,
+          "maxError": 56
+        },
+        "coldStarts": [
+          {
+            "startSeconds": 0,
+            "locksAfterSeconds": 0.5,
+            "largestMoveAfterLock": 9
+          },
+          {
+            "startSeconds": 10,
+            "locksAfterSeconds": 2.9,
+            "largestMoveAfterLock": 9
+          },
+          {
+            "startSeconds": 20,
+            "locksAfterSeconds": 4.0,
+            "largestMoveAfterLock": 3
+          },
+          {
+            "startSeconds": 30,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          },
+          {
+            "startSeconds": 40,
+            "locksAfterSeconds": null,
+            "largestMoveAfterLock": null
+          }
+        ]
+      },
+      "warnings": []
+    },
+    {
+      "slug": "weight-of-the-world",
+      "hasPerformance": false
+    }
+  ],
+  "samples": [
+    {
+      "slug": "aliez",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 103.0,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1341,
+            "exactPitch": {
+              "precision": 0.405,
+              "recall": 0.755,
+              "f1": 0.527
+            },
+            "pitchClass": {
+              "precision": 0.577,
+              "recall": 0.811,
+              "f1": 0.674
+            },
+            "octaveErrorShareOfFalsePositives": 0.509,
+            "highestNoteExact": 0.333,
+            "highestNotePitchClass": 0.709
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.3,
+              "meanAbsoluteError": 162.75
+            },
+            "chroma-template": {
+              "exact": 19.9,
+              "within1": 25.8,
+              "within2": 27.5,
+              "within3": 28.1,
+              "meanAbsoluteError": 33.98
+            },
+            "salience-template": {
+              "exact": 15.7,
+              "within1": 18.5,
+              "within2": 18.6,
+              "within3": 19.3,
+              "meanAbsoluteError": 66.48
+            },
+            "hmm-salience": {
+              "exact": 87.1,
+              "within1": 99.4,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.13
+            },
+            "markov-filter": {
+              "exact": 89.0,
+              "within1": 99.5,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.12
+            }
+          }
+        },
+        {
+          "variant": "extra-notes",
+          "durationSeconds": 103.0,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1334,
+            "exactPitch": {
+              "precision": 0.397,
+              "recall": 0.745,
+              "f1": 0.518
+            },
+            "pitchClass": {
+              "precision": 0.553,
+              "recall": 0.808,
+              "f1": 0.657
+            },
+            "octaveErrorShareOfFalsePositives": 0.462,
+            "highestNoteExact": 0.36,
+            "highestNotePitchClass": 0.7
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.3,
+              "meanAbsoluteError": 162.68
+            },
+            "chroma-template": {
+              "exact": 18.9,
+              "within1": 24.5,
+              "within2": 26.8,
+              "within3": 27.9,
+              "meanAbsoluteError": 52.97
+            },
+            "salience-template": {
+              "exact": 15.8,
+              "within1": 18.6,
+              "within2": 18.7,
+              "within3": 19.4,
+              "meanAbsoluteError": 66.66
+            },
+            "hmm-salience": {
+              "exact": 86.9,
+              "within1": 99.7,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.13
+            },
+            "markov-filter": {
+              "exact": 88.9,
+              "within1": 99.7,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.11
+            }
+          }
+        },
+        {
+          "variant": "fast",
+          "durationSeconds": 82.6,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1086,
+            "exactPitch": {
+              "precision": 0.398,
+              "recall": 0.75,
+              "f1": 0.52
+            },
+            "pitchClass": {
+              "precision": 0.566,
+              "recall": 0.807,
+              "f1": 0.665
+            },
+            "octaveErrorShareOfFalsePositives": 0.49,
+            "highestNoteExact": 0.33,
+            "highestNotePitchClass": 0.689
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.6,
+              "within2": 0.9,
+              "within3": 1.2,
+              "meanAbsoluteError": 126.97
+            },
+            "chroma-template": {
+              "exact": 52.9,
+              "within1": 80.9,
+              "within2": 85.8,
+              "within3": 87.3,
+              "meanAbsoluteError": 3.07
+            },
+            "salience-template": {
+              "exact": 9.8,
+              "within1": 11.9,
+              "within2": 12.0,
+              "within3": 12.1,
+              "meanAbsoluteError": 80.94
+            },
+            "hmm-salience": {
+              "exact": 84.9,
+              "within1": 99.2,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.16
+            },
+            "markov-filter": {
+              "exact": 84.1,
+              "within1": 99.0,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.17
+            }
+          }
+        },
+        {
+          "variant": "missed-notes",
+          "durationSeconds": 103.0,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1244,
+            "exactPitch": {
+              "precision": 0.396,
+              "recall": 0.688,
+              "f1": 0.502
+            },
+            "pitchClass": {
+              "precision": 0.574,
+              "recall": 0.742,
+              "f1": 0.647
+            },
+            "octaveErrorShareOfFalsePositives": 0.516,
+            "highestNoteExact": 0.291,
+            "highestNotePitchClass": 0.653
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.4,
+              "meanAbsoluteError": 165.59
+            },
+            "chroma-template": {
+              "exact": 38.3,
+              "within1": 53.4,
+              "within2": 59.1,
+              "within3": 60.9,
+              "meanAbsoluteError": 11.7
+            },
+            "salience-template": {
+              "exact": 75.3,
+              "within1": 94.1,
+              "within2": 96.5,
+              "within3": 98.1,
+              "meanAbsoluteError": 0.37
+            },
+            "hmm-salience": {
+              "exact": 80.5,
+              "within1": 97.0,
+              "within2": 98.7,
+              "within3": 99.4,
+              "meanAbsoluteError": 0.24
+            },
+            "markov-filter": {
+              "exact": 83.0,
+              "within1": 97.7,
+              "within2": 99.0,
+              "within3": 99.6,
+              "meanAbsoluteError": 0.21
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 103.0,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1372,
+            "exactPitch": {
+              "precision": 0.384,
+              "recall": 0.748,
+              "f1": 0.508
+            },
+            "pitchClass": {
+              "precision": 0.545,
+              "recall": 0.806,
+              "f1": 0.65
+            },
+            "octaveErrorShareOfFalsePositives": 0.482,
+            "highestNoteExact": 0.319,
+            "highestNotePitchClass": 0.69
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 0.9,
+              "within3": 1.2,
+              "meanAbsoluteError": 163.3
+            },
+            "chroma-template": {
+              "exact": 44.9,
+              "within1": 61.2,
+              "within2": 68.7,
+              "within3": 70.9,
+              "meanAbsoluteError": 4.71
+            },
+            "salience-template": {
+              "exact": 10.6,
+              "within1": 12.6,
+              "within2": 12.7,
+              "within3": 12.8,
+              "meanAbsoluteError": 69.64
+            },
+            "hmm-salience": {
+              "exact": 87.2,
+              "within1": 99.1,
+              "within2": 99.4,
+              "within3": 99.4,
+              "meanAbsoluteError": 0.15
+            },
+            "markov-filter": {
+              "exact": 90.6,
+              "within1": 99.8,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.1
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 88.2,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1176,
+            "exactPitch": {
+              "precision": 0.347,
+              "recall": 0.662,
+              "f1": 0.455
+            },
+            "pitchClass": {
+              "precision": 0.496,
+              "recall": 0.741,
+              "f1": 0.594
+            },
+            "octaveErrorShareOfFalsePositives": 0.404,
+            "highestNoteExact": 0.289,
+            "highestNotePitchClass": 0.601
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.3,
+              "within1": 0.7,
+              "within2": 0.9,
+              "within3": 1.4,
+              "meanAbsoluteError": 111.19
+            },
+            "chroma-template": {
+              "exact": 20.8,
+              "within1": 31.5,
+              "within2": 38.3,
+              "within3": 41.3,
+              "meanAbsoluteError": 10.28
+            },
+            "salience-template": {
+              "exact": 10.6,
+              "within1": 12.8,
+              "within2": 12.8,
+              "within3": 13.0,
+              "meanAbsoluteError": 73.1
+            },
+            "hmm-salience": {
+              "exact": 75.9,
+              "within1": 93.2,
+              "within2": 96.8,
+              "within3": 97.7,
+              "meanAbsoluteError": 0.41
+            },
+            "markov-filter": {
+              "exact": 78.9,
+              "within1": 95.9,
+              "within2": 98.8,
+              "within3": 99.8,
+              "meanAbsoluteError": 0.27
+            }
+          }
+        },
+        {
+          "variant": "rubato",
+          "durationSeconds": 103.8,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1358,
+            "exactPitch": {
+              "precision": 0.405,
+              "recall": 0.759,
+              "f1": 0.528
+            },
+            "pitchClass": {
+              "precision": 0.582,
+              "recall": 0.824,
+              "f1": 0.682
+            },
+            "octaveErrorShareOfFalsePositives": 0.508,
+            "highestNoteExact": 0.343,
+            "highestNotePitchClass": 0.713
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.6,
+              "within2": 0.9,
+              "within3": 1.2,
+              "meanAbsoluteError": 127.01
+            },
+            "chroma-template": {
+              "exact": 24.7,
+              "within1": 33.4,
+              "within2": 34.5,
+              "within3": 35.0,
+              "meanAbsoluteError": 27.49
+            },
+            "salience-template": {
+              "exact": 16.5,
+              "within1": 18.8,
+              "within2": 18.9,
+              "within3": 19.0,
+              "meanAbsoluteError": 79.08
+            },
+            "hmm-salience": {
+              "exact": 87.3,
+              "within1": 99.4,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.13
+            },
+            "markov-filter": {
+              "exact": 88.4,
+              "within1": 99.3,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.12
+            }
+          }
+        },
+        {
+          "variant": "rushing",
+          "durationSeconds": 91.1,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1189,
+            "exactPitch": {
+              "precision": 0.398,
+              "recall": 0.751,
+              "f1": 0.52
+            },
+            "pitchClass": {
+              "precision": 0.566,
+              "recall": 0.809,
+              "f1": 0.666
+            },
+            "octaveErrorShareOfFalsePositives": 0.494,
+            "highestNoteExact": 0.334,
+            "highestNotePitchClass": 0.694
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.8,
+              "within2": 1.1,
+              "within3": 1.4,
+              "meanAbsoluteError": 154.37
+            },
+            "chroma-template": {
+              "exact": 20.4,
+              "within1": 27.9,
+              "within2": 29.9,
+              "within3": 30.5,
+              "meanAbsoluteError": 32.1
+            },
+            "salience-template": {
+              "exact": 80.5,
+              "within1": 96.3,
+              "within2": 97.9,
+              "within3": 99.0,
+              "meanAbsoluteError": 0.27
+            },
+            "hmm-salience": {
+              "exact": 86.3,
+              "within1": 99.4,
+              "within2": 99.9,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.14
+            },
+            "markov-filter": {
+              "exact": 87.0,
+              "within1": 99.6,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.13
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 78.7,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1048,
+            "exactPitch": {
+              "precision": 0.262,
+              "recall": 0.524,
+              "f1": 0.35
+            },
+            "pitchClass": {
+              "precision": 0.384,
+              "recall": 0.636,
+              "f1": 0.479
+            },
+            "octaveErrorShareOfFalsePositives": 0.322,
+            "highestNoteExact": 0.159,
+            "highestNotePitchClass": 0.365
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 1.0,
+              "within2": 1.4,
+              "within3": 1.5,
+              "meanAbsoluteError": 158.69
+            },
+            "chroma-template": {
+              "exact": 3.1,
+              "within1": 7.3,
+              "within2": 10.1,
+              "within3": 13.2,
+              "meanAbsoluteError": 73.2
+            },
+            "salience-template": {
+              "exact": 11.7,
+              "within1": 17.8,
+              "within2": 20.8,
+              "within3": 23.2,
+              "meanAbsoluteError": 28.26
+            },
+            "hmm-salience": {
+              "exact": 45.2,
+              "within1": 62.1,
+              "within2": 70.2,
+              "within3": 76.4,
+              "meanAbsoluteError": 8.58
+            },
+            "markov-filter": {
+              "exact": 56.2,
+              "within1": 81.1,
+              "within2": 89.1,
+              "within3": 92.7,
+              "meanAbsoluteError": 2.16
+            }
+          }
+        },
+        {
+          "variant": "slow",
+          "durationSeconds": 128.5,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1656,
+            "exactPitch": {
+              "precision": 0.413,
+              "recall": 0.762,
+              "f1": 0.536
+            },
+            "pitchClass": {
+              "precision": 0.592,
+              "recall": 0.822,
+              "f1": 0.688
+            },
+            "octaveErrorShareOfFalsePositives": 0.531,
+            "highestNoteExact": 0.339,
+            "highestNotePitchClass": 0.721
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.3,
+              "meanAbsoluteError": 122.06
+            },
+            "chroma-template": {
+              "exact": 57.8,
+              "within1": 81.5,
+              "within2": 88.2,
+              "within3": 89.4,
+              "meanAbsoluteError": 1.45
+            },
+            "salience-template": {
+              "exact": 10.2,
+              "within1": 12.1,
+              "within2": 12.3,
+              "within3": 12.6,
+              "meanAbsoluteError": 80.73
+            },
+            "hmm-salience": {
+              "exact": 89.0,
+              "within1": 99.5,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.12
+            },
+            "markov-filter": {
+              "exact": 91.2,
+              "within1": 99.6,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.09
+            }
+          }
+        },
+        {
+          "variant": "unsteady",
+          "durationSeconds": 102.9,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1295,
+            "exactPitch": {
+              "precision": 0.398,
+              "recall": 0.738,
+              "f1": 0.517
+            },
+            "pitchClass": {
+              "precision": 0.57,
+              "recall": 0.792,
+              "f1": 0.663
+            },
+            "octaveErrorShareOfFalsePositives": 0.5,
+            "highestNoteExact": 0.334,
+            "highestNotePitchClass": 0.673
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.2,
+              "within1": 0.6,
+              "within2": 0.9,
+              "within3": 1.4,
+              "meanAbsoluteError": 145.22
+            },
+            "chroma-template": {
+              "exact": 2.5,
+              "within1": 3.6,
+              "within2": 3.6,
+              "within3": 4.8,
+              "meanAbsoluteError": 40.14
+            },
+            "salience-template": {
+              "exact": 2.7,
+              "within1": 3.6,
+              "within2": 3.6,
+              "within3": 3.9,
+              "meanAbsoluteError": 109.93
+            },
+            "hmm-salience": {
+              "exact": 83.6,
+              "within1": 97.7,
+              "within2": 99.9,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.19
+            },
+            "markov-filter": {
+              "exact": 84.5,
+              "within1": 98.1,
+              "within2": 99.8,
+              "within3": 99.9,
+              "meanAbsoluteError": 0.45
+            }
+          }
+        },
+        {
+          "variant": "wrong-notes",
+          "durationSeconds": 103.0,
+          "totalScoreOnsets": 353,
+          "detection": {
+            "scoredFrames": 1341,
+            "exactPitch": {
+              "precision": 0.366,
+              "recall": 0.684,
+              "f1": 0.477
+            },
+            "pitchClass": {
+              "precision": 0.531,
+              "recall": 0.772,
+              "f1": 0.629
+            },
+            "octaveErrorShareOfFalsePositives": 0.433,
+            "highestNoteExact": 0.307,
+            "highestNotePitchClass": 0.647
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.4,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.3,
+              "meanAbsoluteError": 162.75
+            },
+            "chroma-template": {
+              "exact": 2.2,
+              "within1": 3.2,
+              "within2": 3.4,
+              "within3": 4.2,
+              "meanAbsoluteError": 62.6
+            },
+            "salience-template": {
+              "exact": 2.9,
+              "within1": 3.5,
+              "within2": 3.5,
+              "within3": 3.7,
+              "meanAbsoluteError": 108.38
+            },
+            "hmm-salience": {
+              "exact": 82.3,
+              "within1": 97.2,
+              "within2": 99.3,
+              "within3": 99.7,
+              "meanAbsoluteError": 0.21
+            },
+            "markov-filter": {
+              "exact": 84.4,
+              "within1": 97.3,
+              "within2": 99.3,
+              "within3": 99.7,
+              "meanAbsoluteError": 0.19
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "angel-thesis",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 48.4,
+          "totalScoreOnsets": 175,
+          "detection": {
+            "scoredFrames": 632,
+            "exactPitch": {
+              "precision": 0.352,
+              "recall": 0.595,
+              "f1": 0.443
+            },
+            "pitchClass": {
+              "precision": 0.526,
+              "recall": 0.639,
+              "f1": 0.577
+            },
+            "octaveErrorShareOfFalsePositives": 0.492,
+            "highestNoteExact": 0.242,
+            "highestNotePitchClass": 0.809
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 2.4,
+              "within1": 4.7,
+              "within2": 6.8,
+              "within3": 11.7,
+              "meanAbsoluteError": 14.94
+            },
+            "chroma-template": {
+              "exact": 11.9,
+              "within1": 22.8,
+              "within2": 24.1,
+              "within3": 25.6,
+              "meanAbsoluteError": 31.7
+            },
+            "salience-template": {
+              "exact": 11.6,
+              "within1": 15.2,
+              "within2": 16.9,
+              "within3": 17.2,
+              "meanAbsoluteError": 39.62
+            },
+            "hmm-salience": {
+              "exact": 82.9,
+              "within1": 97.0,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.2
+            },
+            "markov-filter": {
+              "exact": 83.4,
+              "within1": 96.8,
+              "within2": 99.7,
+              "within3": 99.7,
+              "meanAbsoluteError": 0.28
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 48.4,
+          "totalScoreOnsets": 175,
+          "detection": {
+            "scoredFrames": 645,
+            "exactPitch": {
+              "precision": 0.316,
+              "recall": 0.588,
+              "f1": 0.411
+            },
+            "pitchClass": {
+              "precision": 0.462,
+              "recall": 0.66,
+              "f1": 0.543
+            },
+            "octaveErrorShareOfFalsePositives": 0.441,
+            "highestNoteExact": 0.24,
+            "highestNotePitchClass": 0.777
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 4.7,
+              "within1": 6.7,
+              "within2": 8.8,
+              "within3": 11.6,
+              "meanAbsoluteError": 17.16
+            },
+            "chroma-template": {
+              "exact": 10.7,
+              "within1": 20.5,
+              "within2": 23.9,
+              "within3": 27.4,
+              "meanAbsoluteError": 15.85
+            },
+            "salience-template": {
+              "exact": 4.0,
+              "within1": 5.7,
+              "within2": 6.4,
+              "within3": 6.7,
+              "meanAbsoluteError": 51.61
+            },
+            "hmm-salience": {
+              "exact": 81.6,
+              "within1": 95.7,
+              "within2": 98.6,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.24
+            },
+            "markov-filter": {
+              "exact": 84.5,
+              "within1": 96.7,
+              "within2": 99.7,
+              "within3": 99.7,
+              "meanAbsoluteError": 0.27
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 41.3,
+          "totalScoreOnsets": 175,
+          "detection": {
+            "scoredFrames": 550,
+            "exactPitch": {
+              "precision": 0.268,
+              "recall": 0.498,
+              "f1": 0.349
+            },
+            "pitchClass": {
+              "precision": 0.394,
+              "recall": 0.58,
+              "f1": 0.469
+            },
+            "octaveErrorShareOfFalsePositives": 0.355,
+            "highestNoteExact": 0.2,
+            "highestNotePitchClass": 0.633
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 4.5,
+              "within1": 14.2,
+              "within2": 19.3,
+              "within3": 29.3,
+              "meanAbsoluteError": 12.65
+            },
+            "chroma-template": {
+              "exact": 12.0,
+              "within1": 18.5,
+              "within2": 22.2,
+              "within3": 25.5,
+              "meanAbsoluteError": 23.88
+            },
+            "salience-template": {
+              "exact": 12.0,
+              "within1": 14.5,
+              "within2": 15.5,
+              "within3": 15.6,
+              "meanAbsoluteError": 35.31
+            },
+            "hmm-salience": {
+              "exact": 70.5,
+              "within1": 90.4,
+              "within2": 95.3,
+              "within3": 99.8,
+              "meanAbsoluteError": 0.44
+            },
+            "markov-filter": {
+              "exact": 76.7,
+              "within1": 93.8,
+              "within2": 98.0,
+              "within3": 99.1,
+              "meanAbsoluteError": 0.64
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 36.7,
+          "totalScoreOnsets": 175,
+          "detection": {
+            "scoredFrames": 489,
+            "exactPitch": {
+              "precision": 0.194,
+              "recall": 0.417,
+              "f1": 0.265
+            },
+            "pitchClass": {
+              "precision": 0.296,
+              "recall": 0.547,
+              "f1": 0.384
+            },
+            "octaveErrorShareOfFalsePositives": 0.256,
+            "highestNoteExact": 0.133,
+            "highestNotePitchClass": 0.403
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.4,
+              "within1": 5.7,
+              "within2": 12.3,
+              "within3": 17.4,
+              "meanAbsoluteError": 35.16
+            },
+            "chroma-template": {
+              "exact": 0.2,
+              "within1": 0.6,
+              "within2": 1.0,
+              "within3": 1.0,
+              "meanAbsoluteError": 47.78
+            },
+            "salience-template": {
+              "exact": 10.2,
+              "within1": 14.9,
+              "within2": 15.3,
+              "within3": 17.0,
+              "meanAbsoluteError": 19.35
+            },
+            "hmm-salience": {
+              "exact": 54.0,
+              "within1": 77.3,
+              "within2": 87.9,
+              "within3": 93.0,
+              "meanAbsoluteError": 1.28
+            },
+            "markov-filter": {
+              "exact": 59.1,
+              "within1": 79.3,
+              "within2": 87.5,
+              "within3": 90.0,
+              "meanAbsoluteError": 3.17
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "departure",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 45.0,
+          "totalScoreOnsets": 149,
+          "detection": {
+            "scoredFrames": 580,
+            "exactPitch": {
+              "precision": 0.493,
+              "recall": 0.74,
+              "f1": 0.591
+            },
+            "pitchClass": {
+              "precision": 0.71,
+              "recall": 0.771,
+              "f1": 0.739
+            },
+            "octaveErrorShareOfFalsePositives": 0.604,
+            "highestNoteExact": 0.371,
+            "highestNotePitchClass": 0.724
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 6.9,
+              "within1": 14.5,
+              "within2": 21.2,
+              "within3": 27.2,
+              "meanAbsoluteError": 14.88
+            },
+            "chroma-template": {
+              "exact": 4.1,
+              "within1": 7.6,
+              "within2": 9.5,
+              "within3": 9.8,
+              "meanAbsoluteError": 39.38
+            },
+            "salience-template": {
+              "exact": 76.0,
+              "within1": 95.3,
+              "within2": 98.3,
+              "within3": 98.3,
+              "meanAbsoluteError": 0.32
+            },
+            "hmm-salience": {
+              "exact": 84.0,
+              "within1": 99.7,
+              "within2": 99.8,
+              "within3": 99.8,
+              "meanAbsoluteError": 0.17
+            },
+            "markov-filter": {
+              "exact": 86.9,
+              "within1": 100.0,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.13
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 45.0,
+          "totalScoreOnsets": 149,
+          "detection": {
+            "scoredFrames": 600,
+            "exactPitch": {
+              "precision": 0.459,
+              "recall": 0.722,
+              "f1": 0.561
+            },
+            "pitchClass": {
+              "precision": 0.657,
+              "recall": 0.768,
+              "f1": 0.708
+            },
+            "octaveErrorShareOfFalsePositives": 0.551,
+            "highestNoteExact": 0.335,
+            "highestNotePitchClass": 0.663
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 6.5,
+              "within1": 11.2,
+              "within2": 15.8,
+              "within3": 19.0,
+              "meanAbsoluteError": 19.47
+            },
+            "chroma-template": {
+              "exact": 32.5,
+              "within1": 44.3,
+              "within2": 45.8,
+              "within3": 46.3,
+              "meanAbsoluteError": 20.25
+            },
+            "salience-template": {
+              "exact": 77.8,
+              "within1": 97.8,
+              "within2": 99.7,
+              "within3": 99.8,
+              "meanAbsoluteError": 0.25
+            },
+            "hmm-salience": {
+              "exact": 84.5,
+              "within1": 99.7,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.16
+            },
+            "markov-filter": {
+              "exact": 86.3,
+              "within1": 99.8,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.14
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 38.5,
+          "totalScoreOnsets": 149,
+          "detection": {
+            "scoredFrames": 512,
+            "exactPitch": {
+              "precision": 0.412,
+              "recall": 0.648,
+              "f1": 0.504
+            },
+            "pitchClass": {
+              "precision": 0.614,
+              "recall": 0.719,
+              "f1": 0.663
+            },
+            "octaveErrorShareOfFalsePositives": 0.529,
+            "highestNoteExact": 0.268,
+            "highestNotePitchClass": 0.586
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 5.3,
+              "within1": 9.4,
+              "within2": 10.4,
+              "within3": 12.1,
+              "meanAbsoluteError": 20.17
+            },
+            "chroma-template": {
+              "exact": 32.8,
+              "within1": 49.2,
+              "within2": 55.1,
+              "within3": 60.4,
+              "meanAbsoluteError": 2.98
+            },
+            "salience-template": {
+              "exact": 32.6,
+              "within1": 40.2,
+              "within2": 45.1,
+              "within3": 48.2,
+              "meanAbsoluteError": 11.37
+            },
+            "hmm-salience": {
+              "exact": 74.8,
+              "within1": 92.6,
+              "within2": 98.0,
+              "within3": 99.2,
+              "meanAbsoluteError": 0.36
+            },
+            "markov-filter": {
+              "exact": 76.8,
+              "within1": 92.6,
+              "within2": 97.9,
+              "within3": 98.6,
+              "meanAbsoluteError": 0.52
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 34.2,
+          "totalScoreOnsets": 149,
+          "detection": {
+            "scoredFrames": 455,
+            "exactPitch": {
+              "precision": 0.339,
+              "recall": 0.548,
+              "f1": 0.419
+            },
+            "pitchClass": {
+              "precision": 0.484,
+              "recall": 0.658,
+              "f1": 0.558
+            },
+            "octaveErrorShareOfFalsePositives": 0.358,
+            "highestNoteExact": 0.224,
+            "highestNotePitchClass": 0.393
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 8.4,
+              "within1": 15.2,
+              "within2": 24.2,
+              "within3": 29.0,
+              "meanAbsoluteError": 12.65
+            },
+            "chroma-template": {
+              "exact": 15.4,
+              "within1": 29.0,
+              "within2": 39.1,
+              "within3": 43.7,
+              "meanAbsoluteError": 15.64
+            },
+            "salience-template": {
+              "exact": 39.3,
+              "within1": 54.5,
+              "within2": 64.0,
+              "within3": 70.5,
+              "meanAbsoluteError": 4.68
+            },
+            "hmm-salience": {
+              "exact": 49.2,
+              "within1": 67.9,
+              "within2": 83.1,
+              "within3": 87.0,
+              "meanAbsoluteError": 1.73
+            },
+            "markov-filter": {
+              "exact": 60.7,
+              "within1": 75.6,
+              "within2": 85.3,
+              "within3": 88.8,
+              "meanAbsoluteError": 3.11
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "guren",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 92.7,
+          "totalScoreOnsets": 503,
+          "detection": {
+            "scoredFrames": 1223,
+            "exactPitch": {
+              "precision": 0.346,
+              "recall": 0.738,
+              "f1": 0.471
+            },
+            "pitchClass": {
+              "precision": 0.523,
+              "recall": 0.763,
+              "f1": 0.62
+            },
+            "octaveErrorShareOfFalsePositives": 0.484,
+            "highestNoteExact": 0.243,
+            "highestNotePitchClass": 0.735
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.7,
+              "within1": 0.8,
+              "within2": 0.9,
+              "within3": 1.0,
+              "meanAbsoluteError": 170.82
+            },
+            "chroma-template": {
+              "exact": 1.1,
+              "within1": 2.4,
+              "within2": 2.5,
+              "within3": 2.5,
+              "meanAbsoluteError": 109.24
+            },
+            "salience-template": {
+              "exact": 70.2,
+              "within1": 91.4,
+              "within2": 93.1,
+              "within3": 94.4,
+              "meanAbsoluteError": 0.58
+            },
+            "hmm-salience": {
+              "exact": 75.0,
+              "within1": 92.8,
+              "within2": 95.0,
+              "within3": 96.3,
+              "meanAbsoluteError": 0.45
+            },
+            "markov-filter": {
+              "exact": 74.2,
+              "within1": 90.9,
+              "within2": 93.0,
+              "within3": 93.7,
+              "meanAbsoluteError": 0.8
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 92.7,
+          "totalScoreOnsets": 503,
+          "detection": {
+            "scoredFrames": 1236,
+            "exactPitch": {
+              "precision": 0.326,
+              "recall": 0.733,
+              "f1": 0.451
+            },
+            "pitchClass": {
+              "precision": 0.488,
+              "recall": 0.765,
+              "f1": 0.596
+            },
+            "octaveErrorShareOfFalsePositives": 0.451,
+            "highestNoteExact": 0.243,
+            "highestNotePitchClass": 0.727
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.7,
+              "within1": 0.8,
+              "within2": 0.9,
+              "within3": 1.0,
+              "meanAbsoluteError": 170.02
+            },
+            "chroma-template": {
+              "exact": 1.1,
+              "within1": 2.3,
+              "within2": 2.4,
+              "within3": 2.5,
+              "meanAbsoluteError": 273.42
+            },
+            "salience-template": {
+              "exact": 70.6,
+              "within1": 90.2,
+              "within2": 91.3,
+              "within3": 92.5,
+              "meanAbsoluteError": 0.86
+            },
+            "hmm-salience": {
+              "exact": 76.3,
+              "within1": 93.4,
+              "within2": 95.6,
+              "within3": 96.8,
+              "meanAbsoluteError": 0.4
+            },
+            "markov-filter": {
+              "exact": 74.8,
+              "within1": 91.7,
+              "within2": 93.7,
+              "within3": 94.2,
+              "meanAbsoluteError": 0.73
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 78.3,
+          "totalScoreOnsets": 503,
+          "detection": {
+            "scoredFrames": 1044,
+            "exactPitch": {
+              "precision": 0.297,
+              "recall": 0.653,
+              "f1": 0.408
+            },
+            "pitchClass": {
+              "precision": 0.442,
+              "recall": 0.709,
+              "f1": 0.545
+            },
+            "octaveErrorShareOfFalsePositives": 0.388,
+            "highestNoteExact": 0.215,
+            "highestNotePitchClass": 0.596
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.7,
+              "within1": 0.8,
+              "within2": 1.0,
+              "within3": 1.1,
+              "meanAbsoluteError": 161.56
+            },
+            "chroma-template": {
+              "exact": 1.1,
+              "within1": 2.1,
+              "within2": 2.4,
+              "within3": 2.6,
+              "meanAbsoluteError": 198.0
+            },
+            "salience-template": {
+              "exact": 46.1,
+              "within1": 64.0,
+              "within2": 67.5,
+              "within3": 70.8,
+              "meanAbsoluteError": 4.35
+            },
+            "hmm-salience": {
+              "exact": 63.6,
+              "within1": 83.1,
+              "within2": 87.9,
+              "within3": 89.7,
+              "meanAbsoluteError": 0.85
+            },
+            "markov-filter": {
+              "exact": 60.1,
+              "within1": 79.1,
+              "within2": 83.3,
+              "within3": 85.2,
+              "meanAbsoluteError": 1.34
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 69.0,
+          "totalScoreOnsets": 503,
+          "detection": {
+            "scoredFrames": 920,
+            "exactPitch": {
+              "precision": 0.214,
+              "recall": 0.491,
+              "f1": 0.298
+            },
+            "pitchClass": {
+              "precision": 0.331,
+              "recall": 0.608,
+              "f1": 0.428
+            },
+            "octaveErrorShareOfFalsePositives": 0.271,
+            "highestNoteExact": 0.138,
+            "highestNotePitchClass": 0.407
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.5,
+              "within1": 0.7,
+              "within2": 1.0,
+              "within3": 1.4,
+              "meanAbsoluteError": 191.73
+            },
+            "chroma-template": {
+              "exact": 1.0,
+              "within1": 1.2,
+              "within2": 1.4,
+              "within3": 1.4,
+              "meanAbsoluteError": 270.3
+            },
+            "salience-template": {
+              "exact": 1.0,
+              "within1": 1.2,
+              "within2": 1.4,
+              "within3": 1.4,
+              "meanAbsoluteError": 161.03
+            },
+            "hmm-salience": {
+              "exact": 39.9,
+              "within1": 56.6,
+              "within2": 64.8,
+              "within3": 67.3,
+              "meanAbsoluteError": 8.42
+            },
+            "markov-filter": {
+              "exact": 40.7,
+              "within1": 58.0,
+              "within2": 66.1,
+              "within3": 69.8,
+              "meanAbsoluteError": 18.89
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "last-stardust",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 67.2,
+          "totalScoreOnsets": 195,
+          "detection": {
+            "scoredFrames": 883,
+            "exactPitch": {
+              "precision": 0.46,
+              "recall": 0.779,
+              "f1": 0.578
+            },
+            "pitchClass": {
+              "precision": 0.645,
+              "recall": 0.809,
+              "f1": 0.718
+            },
+            "octaveErrorShareOfFalsePositives": 0.575,
+            "highestNoteExact": 0.453,
+            "highestNotePitchClass": 0.812
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.0,
+              "within1": 1.5,
+              "within2": 2.0,
+              "within3": 4.0,
+              "meanAbsoluteError": 46.73
+            },
+            "chroma-template": {
+              "exact": 17.9,
+              "within1": 24.3,
+              "within2": 27.5,
+              "within3": 30.2,
+              "meanAbsoluteError": 25.08
+            },
+            "salience-template": {
+              "exact": 76.4,
+              "within1": 96.1,
+              "within2": 97.7,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.3
+            },
+            "hmm-salience": {
+              "exact": 80.0,
+              "within1": 96.5,
+              "within2": 97.7,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.26
+            },
+            "markov-filter": {
+              "exact": 88.1,
+              "within1": 96.5,
+              "within2": 98.4,
+              "within3": 99.2,
+              "meanAbsoluteError": 0.26
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 67.2,
+          "totalScoreOnsets": 195,
+          "detection": {
+            "scoredFrames": 896,
+            "exactPitch": {
+              "precision": 0.443,
+              "recall": 0.769,
+              "f1": 0.562
+            },
+            "pitchClass": {
+              "precision": 0.62,
+              "recall": 0.807,
+              "f1": 0.701
+            },
+            "octaveErrorShareOfFalsePositives": 0.549,
+            "highestNoteExact": 0.439,
+            "highestNotePitchClass": 0.812
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 3.5,
+              "within1": 6.9,
+              "within2": 9.3,
+              "within3": 12.2,
+              "meanAbsoluteError": 35.38
+            },
+            "chroma-template": {
+              "exact": 10.6,
+              "within1": 13.3,
+              "within2": 13.6,
+              "within3": 14.1,
+              "meanAbsoluteError": 61.15
+            },
+            "salience-template": {
+              "exact": 74.8,
+              "within1": 93.2,
+              "within2": 96.1,
+              "within3": 98.3,
+              "meanAbsoluteError": 0.38
+            },
+            "hmm-salience": {
+              "exact": 77.8,
+              "within1": 94.3,
+              "within2": 97.2,
+              "within3": 99.7,
+              "meanAbsoluteError": 0.31
+            },
+            "markov-filter": {
+              "exact": 88.1,
+              "within1": 95.9,
+              "within2": 98.1,
+              "within3": 99.0,
+              "meanAbsoluteError": 0.28
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 57.3,
+          "totalScoreOnsets": 195,
+          "detection": {
+            "scoredFrames": 764,
+            "exactPitch": {
+              "precision": 0.396,
+              "recall": 0.687,
+              "f1": 0.503
+            },
+            "pitchClass": {
+              "precision": 0.551,
+              "recall": 0.74,
+              "f1": 0.632
+            },
+            "octaveErrorShareOfFalsePositives": 0.453,
+            "highestNoteExact": 0.377,
+            "highestNotePitchClass": 0.696
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 5.1,
+              "within1": 8.4,
+              "within2": 11.4,
+              "within3": 15.7,
+              "meanAbsoluteError": 32.66
+            },
+            "chroma-template": {
+              "exact": 6.8,
+              "within1": 10.2,
+              "within2": 13.6,
+              "within3": 15.8,
+              "meanAbsoluteError": 58.95
+            },
+            "salience-template": {
+              "exact": 42.1,
+              "within1": 55.5,
+              "within2": 59.3,
+              "within3": 62.4,
+              "meanAbsoluteError": 7.3
+            },
+            "hmm-salience": {
+              "exact": 73.4,
+              "within1": 91.5,
+              "within2": 94.5,
+              "within3": 99.5,
+              "meanAbsoluteError": 0.41
+            },
+            "markov-filter": {
+              "exact": 80.8,
+              "within1": 93.1,
+              "within2": 95.3,
+              "within3": 97.6,
+              "meanAbsoluteError": 0.53
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 50.9,
+          "totalScoreOnsets": 195,
+          "detection": {
+            "scoredFrames": 678,
+            "exactPitch": {
+              "precision": 0.29,
+              "recall": 0.508,
+              "f1": 0.369
+            },
+            "pitchClass": {
+              "precision": 0.424,
+              "recall": 0.605,
+              "f1": 0.498
+            },
+            "octaveErrorShareOfFalsePositives": 0.337,
+            "highestNoteExact": 0.202,
+            "highestNotePitchClass": 0.441
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 3.7,
+              "within1": 10.9,
+              "within2": 16.2,
+              "within3": 18.4,
+              "meanAbsoluteError": 33.23
+            },
+            "chroma-template": {
+              "exact": 5.0,
+              "within1": 8.0,
+              "within2": 9.7,
+              "within3": 11.5,
+              "meanAbsoluteError": 61.83
+            },
+            "salience-template": {
+              "exact": 38.6,
+              "within1": 65.9,
+              "within2": 79.4,
+              "within3": 86.7,
+              "meanAbsoluteError": 1.44
+            },
+            "hmm-salience": {
+              "exact": 42.0,
+              "within1": 69.5,
+              "within2": 80.4,
+              "within3": 90.4,
+              "meanAbsoluteError": 1.27
+            },
+            "markov-filter": {
+              "exact": 50.9,
+              "within1": 76.4,
+              "within2": 85.0,
+              "within3": 93.4,
+              "meanAbsoluteError": 1.7
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "melissa",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 39.0,
+          "totalScoreOnsets": 138,
+          "detection": {
+            "scoredFrames": 506,
+            "exactPitch": {
+              "precision": 0.613,
+              "recall": 0.788,
+              "f1": 0.69
+            },
+            "pitchClass": {
+              "precision": 0.729,
+              "recall": 0.816,
+              "f1": 0.77
+            },
+            "octaveErrorShareOfFalsePositives": 0.487,
+            "highestNoteExact": 0.634,
+            "highestNotePitchClass": 0.802
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 4.9,
+              "within1": 17.0,
+              "within2": 26.3,
+              "within3": 33.8,
+              "meanAbsoluteError": 15.05
+            },
+            "chroma-template": {
+              "exact": 40.5,
+              "within1": 57.9,
+              "within2": 62.5,
+              "within3": 64.8,
+              "meanAbsoluteError": 4.69
+            },
+            "salience-template": {
+              "exact": 62.3,
+              "within1": 80.4,
+              "within2": 84.6,
+              "within3": 87.9,
+              "meanAbsoluteError": 1.07
+            },
+            "hmm-salience": {
+              "exact": 80.0,
+              "within1": 96.6,
+              "within2": 98.2,
+              "within3": 98.8,
+              "meanAbsoluteError": 0.3
+            },
+            "markov-filter": {
+              "exact": 82.6,
+              "within1": 98.0,
+              "within2": 99.0,
+              "within3": 99.8,
+              "meanAbsoluteError": 0.21
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 39.0,
+          "totalScoreOnsets": 138,
+          "detection": {
+            "scoredFrames": 519,
+            "exactPitch": {
+              "precision": 0.586,
+              "recall": 0.773,
+              "f1": 0.667
+            },
+            "pitchClass": {
+              "precision": 0.694,
+              "recall": 0.814,
+              "f1": 0.749
+            },
+            "octaveErrorShareOfFalsePositives": 0.461,
+            "highestNoteExact": 0.62,
+            "highestNotePitchClass": 0.79
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 6.4,
+              "within1": 12.3,
+              "within2": 17.0,
+              "within3": 23.5,
+              "meanAbsoluteError": 16.08
+            },
+            "chroma-template": {
+              "exact": 24.7,
+              "within1": 35.1,
+              "within2": 38.2,
+              "within3": 40.3,
+              "meanAbsoluteError": 25.03
+            },
+            "salience-template": {
+              "exact": 68.8,
+              "within1": 85.5,
+              "within2": 89.4,
+              "within3": 91.7,
+              "meanAbsoluteError": 0.89
+            },
+            "hmm-salience": {
+              "exact": 78.8,
+              "within1": 94.4,
+              "within2": 96.5,
+              "within3": 97.3,
+              "meanAbsoluteError": 0.38
+            },
+            "markov-filter": {
+              "exact": 82.3,
+              "within1": 96.7,
+              "within2": 98.1,
+              "within3": 98.8,
+              "meanAbsoluteError": 0.25
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 33.3,
+          "totalScoreOnsets": 138,
+          "detection": {
+            "scoredFrames": 443,
+            "exactPitch": {
+              "precision": 0.524,
+              "recall": 0.689,
+              "f1": 0.595
+            },
+            "pitchClass": {
+              "precision": 0.641,
+              "recall": 0.762,
+              "f1": 0.696
+            },
+            "octaveErrorShareOfFalsePositives": 0.431,
+            "highestNoteExact": 0.454,
+            "highestNotePitchClass": 0.641
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 2.3,
+              "within1": 11.3,
+              "within2": 14.9,
+              "within3": 21.4,
+              "meanAbsoluteError": 15.89
+            },
+            "chroma-template": {
+              "exact": 20.3,
+              "within1": 36.1,
+              "within2": 43.6,
+              "within3": 46.0,
+              "meanAbsoluteError": 6.72
+            },
+            "salience-template": {
+              "exact": 65.0,
+              "within1": 87.6,
+              "within2": 93.5,
+              "within3": 95.0,
+              "meanAbsoluteError": 0.77
+            },
+            "hmm-salience": {
+              "exact": 74.7,
+              "within1": 92.1,
+              "within2": 94.1,
+              "within3": 95.7,
+              "meanAbsoluteError": 0.53
+            },
+            "markov-filter": {
+              "exact": 77.9,
+              "within1": 93.9,
+              "within2": 96.2,
+              "within3": 97.1,
+              "meanAbsoluteError": 0.39
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 29.5,
+          "totalScoreOnsets": 138,
+          "detection": {
+            "scoredFrames": 393,
+            "exactPitch": {
+              "precision": 0.394,
+              "recall": 0.526,
+              "f1": 0.45
+            },
+            "pitchClass": {
+              "precision": 0.51,
+              "recall": 0.635,
+              "f1": 0.565
+            },
+            "octaveErrorShareOfFalsePositives": 0.334,
+            "highestNoteExact": 0.3,
+            "highestNotePitchClass": 0.438
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 7.4,
+              "within1": 14.8,
+              "within2": 18.1,
+              "within3": 27.2,
+              "meanAbsoluteError": 15.17
+            },
+            "chroma-template": {
+              "exact": 14.8,
+              "within1": 25.7,
+              "within2": 28.5,
+              "within3": 30.8,
+              "meanAbsoluteError": 26.08
+            },
+            "salience-template": {
+              "exact": 25.2,
+              "within1": 33.1,
+              "within2": 40.7,
+              "within3": 43.3,
+              "meanAbsoluteError": 8.93
+            },
+            "hmm-salience": {
+              "exact": 57.5,
+              "within1": 72.8,
+              "within2": 79.1,
+              "within3": 82.2,
+              "meanAbsoluteError": 1.47
+            },
+            "markov-filter": {
+              "exact": 59.5,
+              "within1": 78.4,
+              "within2": 86.3,
+              "within3": 88.8,
+              "meanAbsoluteError": 1.06
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "sugar-song",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 39.6,
+          "totalScoreOnsets": 137,
+          "detection": {
+            "scoredFrames": 510,
+            "exactPitch": {
+              "precision": 0.358,
+              "recall": 0.678,
+              "f1": 0.469
+            },
+            "pitchClass": {
+              "precision": 0.505,
+              "recall": 0.744,
+              "f1": 0.602
+            },
+            "octaveErrorShareOfFalsePositives": 0.363,
+            "highestNoteExact": 0.251,
+            "highestNotePitchClass": 0.631
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.8,
+              "within1": 3.3,
+              "within2": 4.1,
+              "within3": 4.9,
+              "meanAbsoluteError": 45.06
+            },
+            "chroma-template": {
+              "exact": 14.9,
+              "within1": 26.1,
+              "within2": 30.0,
+              "within3": 37.3,
+              "meanAbsoluteError": 26.9
+            },
+            "salience-template": {
+              "exact": 69.4,
+              "within1": 90.8,
+              "within2": 96.5,
+              "within3": 97.6,
+              "meanAbsoluteError": 0.51
+            },
+            "hmm-salience": {
+              "exact": 78.4,
+              "within1": 98.2,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.23
+            },
+            "markov-filter": {
+              "exact": 83.5,
+              "within1": 98.6,
+              "within2": 99.4,
+              "within3": 99.4,
+              "meanAbsoluteError": 0.3
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 39.6,
+          "totalScoreOnsets": 137,
+          "detection": {
+            "scoredFrames": 528,
+            "exactPitch": {
+              "precision": 0.337,
+              "recall": 0.684,
+              "f1": 0.451
+            },
+            "pitchClass": {
+              "precision": 0.469,
+              "recall": 0.744,
+              "f1": 0.576
+            },
+            "octaveErrorShareOfFalsePositives": 0.337,
+            "highestNoteExact": 0.248,
+            "highestNotePitchClass": 0.585
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 3.2,
+              "within1": 5.5,
+              "within2": 12.7,
+              "within3": 14.2,
+              "meanAbsoluteError": 40.01
+            },
+            "chroma-template": {
+              "exact": 14.0,
+              "within1": 25.0,
+              "within2": 29.0,
+              "within3": 36.9,
+              "meanAbsoluteError": 28.16
+            },
+            "salience-template": {
+              "exact": 58.5,
+              "within1": 88.8,
+              "within2": 95.1,
+              "within3": 96.6,
+              "meanAbsoluteError": 0.67
+            },
+            "hmm-salience": {
+              "exact": 78.0,
+              "within1": 98.1,
+              "within2": 100.0,
+              "within3": 100.0,
+              "meanAbsoluteError": 0.24
+            },
+            "markov-filter": {
+              "exact": 84.7,
+              "within1": 98.7,
+              "within2": 99.4,
+              "within3": 99.4,
+              "meanAbsoluteError": 0.28
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 33.9,
+          "totalScoreOnsets": 137,
+          "detection": {
+            "scoredFrames": 452,
+            "exactPitch": {
+              "precision": 0.279,
+              "recall": 0.572,
+              "f1": 0.375
+            },
+            "pitchClass": {
+              "precision": 0.391,
+              "recall": 0.642,
+              "f1": 0.486
+            },
+            "octaveErrorShareOfFalsePositives": 0.243,
+            "highestNoteExact": 0.204,
+            "highestNotePitchClass": 0.451
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.5,
+              "within1": 3.1,
+              "within2": 4.2,
+              "within3": 5.1,
+              "meanAbsoluteError": 33.28
+            },
+            "chroma-template": {
+              "exact": 15.9,
+              "within1": 27.2,
+              "within2": 31.6,
+              "within3": 36.7,
+              "meanAbsoluteError": 17.38
+            },
+            "salience-template": {
+              "exact": 14.6,
+              "within1": 31.6,
+              "within2": 33.8,
+              "within3": 35.6,
+              "meanAbsoluteError": 16.94
+            },
+            "hmm-salience": {
+              "exact": 65.3,
+              "within1": 89.8,
+              "within2": 94.2,
+              "within3": 96.2,
+              "meanAbsoluteError": 0.6
+            },
+            "markov-filter": {
+              "exact": 71.7,
+              "within1": 93.4,
+              "within2": 94.7,
+              "within3": 96.0,
+              "meanAbsoluteError": 0.6
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 30.0,
+          "totalScoreOnsets": 137,
+          "detection": {
+            "scoredFrames": 400,
+            "exactPitch": {
+              "precision": 0.207,
+              "recall": 0.449,
+              "f1": 0.283
+            },
+            "pitchClass": {
+              "precision": 0.32,
+              "recall": 0.592,
+              "f1": 0.416
+            },
+            "octaveErrorShareOfFalsePositives": 0.229,
+            "highestNoteExact": 0.133,
+            "highestNotePitchClass": 0.273
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.2,
+              "within1": 3.0,
+              "within2": 4.2,
+              "within3": 5.8,
+              "meanAbsoluteError": 52.87
+            },
+            "chroma-template": {
+              "exact": 9.5,
+              "within1": 17.2,
+              "within2": 20.2,
+              "within3": 29.2,
+              "meanAbsoluteError": 32.05
+            },
+            "salience-template": {
+              "exact": 6.8,
+              "within1": 10.2,
+              "within2": 11.0,
+              "within3": 15.8,
+              "meanAbsoluteError": 24.16
+            },
+            "hmm-salience": {
+              "exact": 24.2,
+              "within1": 30.2,
+              "within2": 34.5,
+              "within3": 38.8,
+              "meanAbsoluteError": 20.0
+            },
+            "markov-filter": {
+              "exact": 44.5,
+              "within1": 62.3,
+              "within2": 68.2,
+              "within3": 70.0,
+              "meanAbsoluteError": 15.67
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "unravel",
+      "variants": [
+        {
+          "variant": "clean",
+          "durationSeconds": 70.8,
+          "totalScoreOnsets": 244,
+          "detection": {
+            "scoredFrames": 931,
+            "exactPitch": {
+              "precision": 0.486,
+              "recall": 0.824,
+              "f1": 0.611
+            },
+            "pitchClass": {
+              "precision": 0.781,
+              "recall": 0.824,
+              "f1": 0.802
+            },
+            "octaveErrorShareOfFalsePositives": 0.745,
+            "highestNoteExact": 0.316,
+            "highestNotePitchClass": 0.758
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 1.0,
+              "within1": 2.5,
+              "within2": 4.7,
+              "within3": 5.9,
+              "meanAbsoluteError": 41.18
+            },
+            "chroma-template": {
+              "exact": 46.5,
+              "within1": 64.1,
+              "within2": 68.6,
+              "within3": 76.6,
+              "meanAbsoluteError": 2.54
+            },
+            "salience-template": {
+              "exact": 78.7,
+              "within1": 93.8,
+              "within2": 94.6,
+              "within3": 95.8,
+              "meanAbsoluteError": 0.51
+            },
+            "hmm-salience": {
+              "exact": 80.3,
+              "within1": 93.7,
+              "within2": 94.1,
+              "within3": 94.6,
+              "meanAbsoluteError": 0.72
+            },
+            "markov-filter": {
+              "exact": 81.2,
+              "within1": 93.3,
+              "within2": 93.9,
+              "within3": 94.1,
+              "meanAbsoluteError": 1.12
+            }
+          }
+        },
+        {
+          "variant": "noisy",
+          "durationSeconds": 70.8,
+          "totalScoreOnsets": 244,
+          "detection": {
+            "scoredFrames": 944,
+            "exactPitch": {
+              "precision": 0.463,
+              "recall": 0.814,
+              "f1": 0.591
+            },
+            "pitchClass": {
+              "precision": 0.72,
+              "recall": 0.822,
+              "f1": 0.768
+            },
+            "octaveErrorShareOfFalsePositives": 0.689,
+            "highestNoteExact": 0.328,
+            "highestNotePitchClass": 0.749
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 3.0,
+              "within1": 5.4,
+              "within2": 9.3,
+              "within3": 12.4,
+              "meanAbsoluteError": 25.45
+            },
+            "chroma-template": {
+              "exact": 30.3,
+              "within1": 41.9,
+              "within2": 44.7,
+              "within3": 49.3,
+              "meanAbsoluteError": 27.92
+            },
+            "salience-template": {
+              "exact": 48.0,
+              "within1": 55.1,
+              "within2": 56.1,
+              "within3": 56.6,
+              "meanAbsoluteError": 31.5
+            },
+            "hmm-salience": {
+              "exact": 81.5,
+              "within1": 93.3,
+              "within2": 94.1,
+              "within3": 94.5,
+              "meanAbsoluteError": 0.74
+            },
+            "markov-filter": {
+              "exact": 81.8,
+              "within1": 92.9,
+              "within2": 93.5,
+              "within3": 93.8,
+              "meanAbsoluteError": 1.39
+            }
+          }
+        },
+        {
+          "variant": "realistic",
+          "durationSeconds": 60.7,
+          "totalScoreOnsets": 244,
+          "detection": {
+            "scoredFrames": 809,
+            "exactPitch": {
+              "precision": 0.415,
+              "recall": 0.727,
+              "f1": 0.528
+            },
+            "pitchClass": {
+              "precision": 0.642,
+              "recall": 0.781,
+              "f1": 0.705
+            },
+            "octaveErrorShareOfFalsePositives": 0.577,
+            "highestNoteExact": 0.248,
+            "highestNotePitchClass": 0.619
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 2.8,
+              "within1": 4.9,
+              "within2": 7.3,
+              "within3": 10.0,
+              "meanAbsoluteError": 26.25
+            },
+            "chroma-template": {
+              "exact": 32.8,
+              "within1": 46.8,
+              "within2": 51.7,
+              "within3": 54.8,
+              "meanAbsoluteError": 8.26
+            },
+            "salience-template": {
+              "exact": 32.3,
+              "within1": 43.0,
+              "within2": 45.9,
+              "within3": 51.8,
+              "meanAbsoluteError": 11.57
+            },
+            "hmm-salience": {
+              "exact": 70.2,
+              "within1": 85.7,
+              "within2": 87.8,
+              "within3": 89.4,
+              "meanAbsoluteError": 1.43
+            },
+            "markov-filter": {
+              "exact": 73.2,
+              "within1": 87.4,
+              "within2": 89.4,
+              "within3": 91.2,
+              "meanAbsoluteError": 2.12
+            }
+          }
+        },
+        {
+          "variant": "sloppy",
+          "durationSeconds": 54.0,
+          "totalScoreOnsets": 244,
+          "detection": {
+            "scoredFrames": 719,
+            "exactPitch": {
+              "precision": 0.299,
+              "recall": 0.544,
+              "f1": 0.386
+            },
+            "pitchClass": {
+              "precision": 0.46,
+              "recall": 0.646,
+              "f1": 0.537
+            },
+            "octaveErrorShareOfFalsePositives": 0.396,
+            "highestNoteExact": 0.186,
+            "highestNotePitchClass": 0.452
+          },
+          "tracking": {
+            "melody-pitch": {
+              "exact": 0.8,
+              "within1": 5.0,
+              "within2": 7.4,
+              "within3": 8.2,
+              "meanAbsoluteError": 41.84
+            },
+            "chroma-template": {
+              "exact": 11.0,
+              "within1": 21.4,
+              "within2": 25.7,
+              "within3": 31.6,
+              "meanAbsoluteError": 32.9
+            },
+            "salience-template": {
+              "exact": 0.0,
+              "within1": 2.9,
+              "within2": 4.2,
+              "within3": 5.6,
+              "meanAbsoluteError": 45.76
+            },
+            "hmm-salience": {
+              "exact": 43.5,
+              "within1": 61.9,
+              "within2": 68.0,
+              "within3": 77.6,
+              "meanAbsoluteError": 2.63
+            },
+            "markov-filter": {
+              "exact": 54.5,
+              "within1": 74.1,
+              "within2": 79.3,
+              "within3": 83.2,
+              "meanAbsoluteError": 2.14
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
