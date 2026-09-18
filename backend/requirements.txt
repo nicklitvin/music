@@ -27,3 +27,8 @@ pillow==12.3.0
 # correct position is known at every instant, which is what
 # scripts/evaluate_tracking.py measures tracking accuracy against.
 pretty_midi==0.2.11.post0
+
+# Bundles a standalone ffmpeg binary (no separate system install needed) so
+# scripts/run_benchmarks.py can decode the mp3/mp4 performance recordings
+# under content/full/ to the 16kHz mono WAV the evaluation pipeline expects.
+imageio-ffmpeg==0.6.0

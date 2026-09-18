@@ -1,4 +1,5 @@
 import type { ProcessScoreResponse, ScoreRecord } from './types'
+import type { BenchmarkResults } from './benchmarkTypes'
 
 // Empty string means "same origin" -- used for local dev, where Vite proxies
 // /api to the backend (see vite.config.ts). In production, set
@@ -96,4 +97,14 @@ export async function loadSampleScore(page = 0): Promise<ScoreRecord> {
     // No sourcePdf: the sample PDF is local-only (gitignored, copyrighted
     // sheet music), never sent to or stored in the browser.
   }
+}
+
+// Accuracy benchmark results (backend/scripts/run_benchmarks.py), for the
+// Benchmarks page. 404s if nobody has run that script locally yet.
+export async function getBenchmarks(): Promise<BenchmarkResults> {
+  const res = await fetch(`${API_BASE_URL}/api/benchmarks`)
+  if (!res.ok) {
+    throw new Error(`Benchmarks unavailable: ${res.status} ${res.statusText}`)
+  }
+  return res.json()
 }

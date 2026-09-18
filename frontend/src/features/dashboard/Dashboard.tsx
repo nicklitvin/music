@@ -49,6 +49,9 @@ export function Dashboard() {
           <Link className="button" to="/upload">
             Upload Sheet Music
           </Link>
+          <Link className="btn btn-ghost" to="/benchmarks">
+            Accuracy Benchmarks
+          </Link>
         </div>
       </header>
       {sampleError && <p role="alert">{sampleError}</p>}

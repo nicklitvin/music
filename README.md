@@ -70,6 +70,34 @@ python -m venv .venv
 
 Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`.
 
+## Accuracy benchmarks
+
+`content/` (gitignored -- real, often copyrighted, sheet music and
+recordings) holds the test material, laid out as:
+
+```
+content/
+  full/<piece>/score.pdf          one sheet, as uploaded
+              /notes.json         OMR output (scripts/extract_notes.py)
+              /performance.mp3    the real accompanying recording, if any
+  samples/<piece>/<variant>.wav          synthesized flawed performance
+                  /<variant>-truth.json  its exact, known ground truth
+```
+
+`backend/scripts/run_benchmarks.py` scores every piece under `content/full/`
+against its real recording (note detection + every position-tracking
+method + the live seed-at-top/rate-limited path), and every synthesized
+sample under `content/samples/` the same way `evaluate_tracking.py` does.
+It writes `backend/benchmark_results.json` -- committed (aggregate metrics
+only, never the underlying musical content) -- which `GET /api/benchmarks`
+serves to the frontend's **Benchmarks** page (`/benchmarks`).
+
+```
+cd backend
+.venv\Scripts\python scripts\run_benchmarks.py          # everything
+.venv\Scripts\python scripts\run_benchmarks.py --only aliez
+```
+
 ## Known gaps (by design, for now)
 
 - **OMR**: page images are real (rendered via PyMuPDF at 300 DPI); actual

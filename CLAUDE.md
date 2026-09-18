@@ -39,3 +39,12 @@
   needs a pinned, older numpy/scipy/opencv/onnxruntime set to load oemer's
   pretrained models (see the comment in `backend/requirements.txt`) —
   don't casually bump those.
+- **Test material lives in `content/`, entirely gitignored** (real, often
+  copyrighted, sheet music PDFs and recordings) — laid out as
+  `content/full/<piece>/{score.pdf,notes.json,performance.*}` and
+  `content/samples/<piece>/<variant>.wav`+`-truth.json`. The one exception
+  is `backend/benchmark_results.json`, produced by
+  `backend/scripts/run_benchmarks.py` and served by `GET /api/benchmarks`
+  to the frontend's Benchmarks page — it **is** committed, but only ever
+  holds aggregate metrics (F1 scores, accuracy percentages, jump counts).
+  Never add per-note/per-pitch content to it.
