@@ -28,6 +28,11 @@ export interface ScoreRecord {
   // parsing algorithm improves -- without asking the user to re-upload.
   // Optional because scores saved before this field existed won't have it.
   sourcePdf?: Blob
+  // Manual ordering for the scores list (drag handles) -- ascending, ties
+  // broken by uploadDate. Optional because scores saved before drag
+  // reordering existed won't have it; listScores() backfills a value from
+  // uploadDate for those on the fly.
+  sortOrder?: number
 }
 
 export interface ProcessScoreResponse {

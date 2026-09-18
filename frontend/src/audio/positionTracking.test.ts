@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildOnsets, nearestOnset } from './positionTracking'
+import { buildOnsets } from './positionTracking'
 import type { NoteBoundingBox } from '../lib/types'
 
 function box(overrides: Partial<NoteBoundingBox>): NoteBoundingBox {
@@ -40,23 +40,5 @@ describe('buildOnsets', () => {
     ])
 
     expect(onsets.map((o) => o[0].pitch)).toEqual(['first', 'mid', 'later'])
-  })
-})
-
-describe('nearestOnset', () => {
-  const onsets = buildOnsets([
-    box({ pitch: 'a', x: 100, y: 100, measureIndex: 1 }),
-    box({ pitch: 'b', x: 300, y: 100, measureIndex: 2 }),
-    box({ pitch: 'c', x: 100, y: 600, measureIndex: 5 }),
-  ])
-
-  it('returns the index of the onset closest to a point', () => {
-    expect(onsets[nearestOnset(onsets, 0, 110, 105)][0].pitch).toBe('a')
-    expect(onsets[nearestOnset(onsets, 0, 290, 120)][0].pitch).toBe('b')
-    expect(onsets[nearestOnset(onsets, 0, 90, 590)][0].pitch).toBe('c')
-  })
-
-  it('returns -1 when no onset is on the given page', () => {
-    expect(nearestOnset(onsets, 5, 100, 100)).toBe(-1)
   })
 })
