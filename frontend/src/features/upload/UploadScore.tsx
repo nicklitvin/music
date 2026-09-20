@@ -3,10 +3,17 @@ import { BottomNav } from '../../components/BottomNav'
 import { useUploadQueue } from '../../lib/uploadQueue'
 
 const INFO_CONTENT = (
-  <p>
-    Choose a PDF of piano sheet music. It's parsed into individual notes and page images, stored only on this
-    device, then you're taken back to your library where you can watch it process.
-  </p>
+  <>
+    <p>
+      Choose a PDF of piano sheet music. It's parsed into individual notes and page images, stored only on this
+      device, then you're taken back to your library where you can watch it process.
+    </p>
+    <p>
+      Note recognition runs a model over every page and takes <strong>about 5 minutes per page</strong> — a
+      10-page sheet is roughly an hour. Your library shows an estimated time remaining while it works, and you
+      can leave the page and come back.
+    </p>
+  </>
 )
 
 export function UploadScore() {
@@ -33,8 +40,8 @@ export function UploadScore() {
         <span className="btn btn-primary">Choose a PDF</span>
       </label>
       <p className="subtle-text">
-        Note recognition runs on our server and can take a few minutes per page -- you'll see it processing in
-        your scores list.
+        Note recognition takes about 5 minutes per page, so a 10-page sheet is roughly an hour. You'll see an
+        estimated time remaining in your scores list, and you can leave this page while it works.
       </p>
       <BottomNav infoTitle="Upload Sheet Music" infoContent={INFO_CONTENT} />
     </div>

@@ -31,6 +31,14 @@
 - **Client-side persistence**: all visual/audio assets (page images,
   MusicXML, bounding boxes, and the original uploaded PDF) live in the
   browser's IndexedDB via Dexie — never in a server-side database.
+- **Note detection for position tracking** uses a vendored copy of
+  Spotify's basic-pitch ONNX model (`backend/app/assets/basic_pitch/`,
+  Apache 2.0 — keep its LICENSE/NOTICE alongside it). Deliberately vendored
+  rather than `pip install basic-pitch`: the package wants a modern numpy,
+  which collides with the older pins oemer needs, whereas the 230KB model
+  file runs fine on the onnxruntime already pinned. Don't add the pip
+  package. `USE_LEARNED_TRANSCRIPTION=false` reverts to the older
+  hand-written estimator; keep both paths working.
 - Pitch detection (`backend/app/services/pitch_detection.py`) does real
   frequency-domain detection (FFT peak-picking, single notes and chords) —
   no longer a stub. OMR (`backend/app/services/omr.py` +

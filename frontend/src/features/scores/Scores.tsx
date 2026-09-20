@@ -4,7 +4,7 @@ import { BottomNav } from '../../components/BottomNav'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { deleteScore, listScores, reorderScores } from '../../lib/db'
 import { useDragReorder } from '../../lib/useDragReorder'
-import { useUploadQueue } from '../../lib/uploadQueue'
+import { SECONDS_PER_PAGE, useUploadQueue, type PendingUpload } from '../../lib/uploadQueue'
 import type { ScoreRecord } from '../../lib/types'
 
 const INFO_CONTENT = (
@@ -18,6 +18,40 @@ const INFO_CONTENT = (
     </ul>
   </>
 )
+
+function formatDuration(seconds: number): string {
+  if (seconds < 90) return 'less than a minute'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `about ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `about ${hours}h ${rest}min` : `about ${hours}h`
+}
+
+// Note recognition is minutes per page, so "Processing..." on its own leaves
+// someone staring at a spinner for an hour with no idea whether it's stuck.
+function processingLabel(upload: PendingUpload, now: number): string {
+  const elapsed = (now - upload.startedAt) / 1000
+  if (!upload.pageCount) return 'Processing — about 5 min per page'
+
+  const total = upload.pageCount * SECONDS_PER_PAGE
+  const page = Math.min(upload.pageCount, Math.floor(elapsed / SECONDS_PER_PAGE) + 1)
+  const remaining = total - elapsed
+  const progress = `Page ~${page} of ${upload.pageCount}`
+  // Past the estimate but still going: don't keep promising a time.
+  return remaining <= 30 ? `${progress} — finishing up` : `${progress} — ${formatDuration(remaining)} left`
+}
+
+// Ticks while an upload is in flight so the estimate counts down on its own.
+function useTicker(active: boolean, intervalMs = 10000): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const timer = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(timer)
+  }, [active, intervalMs])
+  return now
+}
 
 function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
@@ -50,6 +84,7 @@ export function Scores() {
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<ScoreRecord | null>(null)
   const thumbnails = useThumbnails(scores)
+  const now = useTicker(pending.some((upload) => !upload.error))
 
   useEffect(() => {
     listScores()
@@ -92,7 +127,7 @@ export function Scores() {
             <div className="score-info">
               <strong>{upload.fileName}</strong>
               <span className={upload.error ? 'score-item-error' : ''}>
-                {upload.error ?? 'Processing…'}
+                {upload.error ?? processingLabel(upload, now)}
               </span>
             </div>
             {upload.error && (

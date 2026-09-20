@@ -125,6 +125,25 @@ def test_ws_without_init_still_reports_plain_note_detection(client):
     assert "onsetIndex" not in message
 
 
+def test_ws_tracks_score_position_with_the_harmonic_front_end(client, monkeypatch):
+    # USE_LEARNED_TRANSCRIPTION=false is the documented way back to the
+    # pre-basic-pitch note detector, so it has to keep working.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "use_learned_transcription", False)
+
+    with client.websocket_connect("/ws/track-audio") as websocket:
+        websocket.send_text(json.dumps({"type": "INIT", "notes": SCORE_NOTES}))
+
+        message = None
+        for _ in range(20):
+            websocket.send_bytes(_harmonic_rich_pcm16(E5, 4096))
+            message = websocket.receive_json()
+
+    assert message["type"] == "POSITION"
+    assert message["onsetIndex"] == 1
+
+
 def test_ws_accepts_a_position_hint(client):
     with client.websocket_connect("/ws/track-audio") as websocket:
         websocket.send_text(json.dumps({"type": "INIT", "notes": SCORE_NOTES}))

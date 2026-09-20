@@ -56,10 +56,39 @@ in production.
   `oemer_engine.py`) per page, and returns MusicXML + note bounding boxes +
   base64 page images. Slow on CPU (multiple minutes per page).
 - `WS /ws/track-audio` — receives streamed PCM16 audio chunks; once sent an
-  `INIT` frame with the score's notes, runs real harmonic-salience pitch
-  detection and a Markov position tracker, and streams back which onset
-  (and page) it believes is sounding. See `app/services/note_estimation.py`,
+  `INIT` frame with the score's notes, transcribes the audio and runs a
+  Markov position tracker over it, streaming back which onset (and page) it
+  believes is sounding. See `app/services/streaming_transcription.py`,
   `position_markov.py`, and `app/routers/audio_ws.py`.
+
+### Note detection
+
+Position tracking is only as good as the per-frame evidence under it, and
+that evidence comes from a vendored copy of Spotify's **basic-pitch**
+transcription model (`app/assets/basic_pitch/`, Apache 2.0, with its
+LICENSE and NOTICE). The model is 230KB and takes raw audio — the CQT front
+end is inside the graph — so it runs on the onnxruntime the app already
+pins, and the `basic-pitch` package itself is *not* a dependency (it wants
+a modern numpy, which would collide with the older set oemer's models need).
+
+`app/services/streaming_transcription.py` runs it over a live stream,
+mirroring basic-pitch's own windowing because that windowing is
+load-bearing: 1.99s windows, and the first and last 15 frames of each are
+discarded because a convolutional model has no context past the window
+edge. Discarding the trailing frames is what costs latency — a frame is
+emitted once ~174ms of following audio exists — and inference runs every
+~0.3s of new audio rather than every frame, which is what keeps it cheap.
+
+On top of the transcribed pitch it also matches **note attacks**: the
+tracker's templates describe what is *ringing* at a score position, which
+is blurry by construction (a held chord looks the same for a second), while
+where notes are *struck* pins a position down.
+
+**To go back to the previous hand-written detector**
+(`app/services/note_estimation.py`), set `USE_LEARNED_TRANSCRIPTION=false`
+— nothing else needs changing, and both paths are covered by the test
+suite. It is worth roughly 18 points of start-anywhere accuracy, so this is
+a revert switch rather than a tuning knob.
 
 ```
 cd backend
@@ -69,7 +98,18 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 ```
 
-Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`.
+Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`,
+`USE_LEARNED_TRANSCRIPTION` (see "Note detection" above).
+
+### How long OMR takes
+
+Recognition is the slow part of the whole system: **a median 308s per page**
+(range 296-374s over 57 timed pages), CPU-only, so a 10-page sheet is
+around an hour and the full 65-page test corpus took ~5.6 hours. That is
+why the upload UI shows an estimated time remaining rather than a bare
+spinner, and why `scripts/extract_all_pages.py` is resumable and runs one
+page per subprocess (oemer is memory-hungry enough to get OOM-killed on a
+long run, and a kill should only cost the page in flight).
 
 ## Accuracy benchmarks
 
@@ -152,17 +192,28 @@ Ground truth is recovered by aligning detected audio onsets to the score,
 so treat this as "roughly this good/bad", not exact. Every sheet is fully
 OMR'd (65 pages across the 8 pieces that have recordings).
 
-| Piece | Pages | Onsets | Length | Note detection F1 (exact / pitch-class) | Locks eventually | Locks within 5s |
+Run it with `scripts/compare_front_ends.py --streaming`, which scores the
+same pieces, score, start points and lock rule against four note-detection
+front ends. **streaming** is the one that matters: audio fed through
+`StreamingTranscriber` in 75ms chunks exactly as the WebSocket handler
+does, so nothing depends on audio that hasn't been played yet.
+
+| Piece | Pages | Onsets | harmonic (old) | basic-pitch | + attacks | **streaming (live path)** |
 |---|---|---|---|---|---|---|
-| guren | 3 | 1042 | 1:55 | 0.35 / 0.58 | 15/15 (100%) | 11/15 (73%) |
-| angel-thesis | 11 | 1782 | 4:58 | 0.36 / 0.54 | 15/15 (100%) | 9/15 (60%) |
-| aliez | 4 | 1582 | 4:51 | 0.40 / 0.61 | 15/15 (100%) | 8/15 (53%) |
-| melissa | 10 | 1536 | 5:04 | 0.30 / 0.46 | 14/15 (93%) | 6/15 (40%) |
-| unravel | 6 | 1765 | 4:08 | 0.40 / 0.61 | 14/15 (93%) | 6/15 (40%) |
-| departure | 13 | 1855 | 5:37 | 0.28 / 0.48 | 14/15 (93%) | 5/15 (33%) |
-| last-stardust | 7 | 1609 | 6:33 | 0.26 / 0.46 | 10/15 (67%) | 3/15 (20%) |
-| sugar-song † | 11 | 1738 | 4:28 | 0.11 / 0.21 | 9/15 (60%) | 0/15 (0%) |
-| **overall** | **65** | | | | **106/120 (88%)** | **48/120 (40%)** |
+| guren | 3 | 1042 | 11/15 | 14/15 | 14/15 | **13/15 (87%)** |
+| angel-thesis | 11 | 1782 | 9/15 | 11/15 | 11/15 | **11/15 (73%)** |
+| aliez | 4 | 1582 | 8/15 | 8/15 | 10/15 | **11/15 (73%)** |
+| unravel | 6 | 1765 | 6/15 | 8/15 | 10/15 | **9/15 (60%)** |
+| departure | 13 | 1855 | 5/15 | 10/15 | 12/15 | **8/15 (53%)** |
+| last-stardust | 7 | 1609 | 3/15 | 6/15 | 7/15 | **8/15 (53%)** |
+| melissa | 10 | 1536 | 6/15 | 8/15 | 8/15 | **8/15 (53%)** |
+| sugar-song † | 11 | 1738 | 0/15 | 2/15 | 3/15 | **1/15 (7%)** |
+| **within 5s** | **65** | | **48/120 (40%)** | 67/120 (56%) | 75/120 (62%) | **69/120 (58%)** |
+| **locks eventually** | | | 106/120 (88%) | 115/120 (96%) | 116/120 (97%) | **114/120 (95%)** |
+
+Streaming costs about 4 points against feeding the model whole files
+(62% -> 58%), which is the price of only ever seeing a trailing window.
+Excluding the key-mismatched `sugar-song`: **68/105 (65%)** within 5s.
 
 † `sugar-song`'s recording is **11 semitones from its sheet's key** -- the
 two are not the same arrangement, so it measures that mismatch rather than
@@ -170,7 +221,6 @@ the tracker. Pitch-class profiles correlate 0.81 when the recording is
 shifted a semitone and **-0.45** in the sheet's own key; every other piece
 matches at shift 0 (r 0.82-0.98). `evaluate_piece` now detects this and
 says so in `warnings` instead of silently reporting a broken tracker.
-Excluding it: **48/105 (46%)** within 5s, **97/105 (92%)** eventually.
 
 ### Why whole-sheet OMR
 
@@ -199,8 +249,12 @@ accompanying recording, so they aren't scored.
 
 ### What changed this round
 
-Four things, in order of how much they mattered:
+Five things, in order of how much they mattered:
 
+0. **A learned note detector** (see "Note detection" above) -- replacing the
+   hand-written harmonic-salience estimator with the vendored basic-pitch
+   model, plus attack matching, is worth 40% -> 58% on its own, and took
+   "locks eventually" from 88% to 95%.
 1. **Whole-sheet OMR** (above) -- fixed the ground truth itself.
 2. **The rate limiter no longer throttles first acquisition.**
    `ReportedPosition` exists to stop the highlight twitching during steady
@@ -228,35 +282,46 @@ measurement as much as about the thing being measured.
 
 ## Known gaps (by design, for now)
 
-- **"Start anywhere" is at 40% within 5s, against an 80% target** (see
-  above). The shape of the gap is specific and worth stating precisely: the
-  tracker almost always finds the right place (88% of start points lock
-  eventually, 92% excluding the mismatched-key piece) -- it just doesn't
-  find it *fast*. This is an acquisition-speed problem, not a "can't find
-  it" problem, and the two want different fixes.
-- **The next lever is probably rhythm, not more parameter tuning.** A
-  single struck note is genuinely ambiguous -- the same pitches recur all
-  over a piece -- so pitch evidence alone needs many frames to disambiguate.
-  Inter-onset timing is a strong, currently-unused signal: the score knows
-  how long each onset should last, and the recording's detected onsets give
-  the played rhythm directly. Matching those patterns should cut
-  acquisition time where pitch alone is slow.
+- **"Start anywhere" is at 58% within 5s on the live path, against an 80%
+  target.** The shape of the gap is specific and worth stating precisely:
+  the tracker almost always finds the right place (95% of start points lock
+  eventually, 97% excluding the mismatched-key piece) -- it just doesn't
+  always find it *fast*. This is an acquisition-speed problem, not a
+  "can't find it" problem, and the two want different fixes.
+- **Streaming costs ~4 points** against whole-file inference (62% -> 58%),
+  because the model only ever sees a trailing window. Worth revisiting if
+  it becomes the binding constraint; it currently is not.
+- **Rhythm is now half-used.** Note *attacks* are matched (worth ~5 points),
+  but inter-onset *timing* still is not: the score knows how long each onset
+  should last, and the detected onsets give the played rhythm directly.
+  Matching those interval patterns is the obvious next lever where pitch
+  alone stays ambiguous.
 - **Slow acquisition is concentrated in dense, repetitive passages.** On
   guren the failing start points are all in the first ~40s, where the
   opening riff repeats and the score runs ~20 onsets/second; the tracker
   cannot tell which repetition it is hearing until the music moves on.
   Some of this is irreducible ambiguity rather than a fixable defect.
-- **Note detection** on real recordings runs F1 0.26-0.40 (exact pitch) /
-  0.46-0.61 (pitch class) -- octave errors are the largest failure mode
-  (`app/services/note_estimation.py`). Better detection would lift every
-  number above it.
+- **Don't trust the note-detection F1 in `benchmark_results.json`.** It is
+  computed from the top 6 pitches above a relative threshold, which throws
+  away the shape of the evidence the tracker actually consumes. basic-pitch
+  scores *worse* on it than the old estimator (0.16 vs 0.28 exact on
+  departure) while tracking far better (11/15 vs 5/15). An earlier round
+  concluded "the gap tracks each piece's note-detection F1" on the strength
+  of that number; it was the wrong proxy.
 - **`sugar-song` needs a matching recording** -- its current one is a
   semitone off the sheet, so it is not testing anything useful. Either
   source a recording of that arrangement or transpose one. (Making the
   tracker itself transposition-robust is a plausible *feature* -- detect
   the offset at INIT and shift the templates -- but it is not why the
   benchmark is red.)
-- **OMR** (`oemer`) is CPU-only here and takes ~5 minutes per page, so
+- **OMR** (`oemer`) is CPU-only here and takes a median 308s per page, so
   `content/full/<piece>/notes.json` is generated once by
-  `scripts/extract_all_pages.py` (~5.5 hours for all 65 pages) and reused
-  rather than re-run on every benchmark pass.
+  `scripts/extract_all_pages.py` (~5.6 hours for all 65 pages) and reused
+  rather than re-run on every benchmark pass. This is also the dominant
+  cost a real user pays on upload -- see "How long OMR takes" above.
+- **Line detection is approximated by bars.** Staff systems can be found
+  from the page image by horizontal projection (staff lines are the only
+  thin full-width runs of ink), and this works on most pages -- but dense
+  engraving loses the odd staff, which then mis-pairs treble/bass into
+  systems. Until that is solid the benchmark scores "right bar +/-1", which
+  at 2-3 bars per system is close but not the same claim.

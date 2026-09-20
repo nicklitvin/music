@@ -1,12 +1,15 @@
+import asyncio
 import json
 import time
+from functools import lru_cache
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from app.config import settings
 from app.models import NoteBoundingBox
-from app.services import pitch_detection
+from app.services import pitch_detection, streaming_transcription
 from app.services.position_markov import MarkovConfig, MarkovPositionTracker
 from app.services.score_timeline import build_timeline
 
@@ -109,10 +112,41 @@ class ReportedPosition:
         self._acquired = True
 
 
+@lru_cache(maxsize=1)
+def _model_session():
+    """One shared onnxruntime session for every socket. ORT sessions are
+    thread-safe, and loading the model per connection would be waste."""
+    return streaming_transcription.load_session()
+
+
 class _Session:
     def __init__(self, tracker: MarkovPositionTracker, start_index: int, acquired: bool) -> None:
         self.tracker = tracker
         self.reported = ReportedPosition(index=start_index, acquired=acquired)
+        self.confidence = 0.0
+        self.transcriber = (
+            streaming_transcription.StreamingTranscriber(session=_model_session())
+            if settings.use_learned_transcription
+            else None
+        )
+
+    def observe_chunk(self, frame: np.ndarray) -> None:
+        """Feed one chunk of PCM into the tracker.
+
+        With the learned front end, the transcriber answers with however
+        many whole frames have become available -- often none, since it
+        batches inference, and several at once when it runs. Either way this
+        is blocking work; call it off the event loop.
+        """
+        if self.transcriber is None:
+            self._apply(self.tracker.observe(frame))
+            return
+        for salience in self.transcriber.push(frame / 32768.0):
+            self._apply(self.tracker.observe(frame, salience=salience))
+
+    def _apply(self, estimate) -> None:
+        self.reported.update(estimate.index, estimate.confidence >= LIVE_CONFIG.jump_confidence_gate)
+        self.confidence = estimate.confidence
 
 
 @router.websocket("/ws/track-audio")
@@ -174,11 +208,12 @@ async def track_audio(websocket: WebSocket) -> None:
             if session is not None:
                 usable = len(chunk) - (len(chunk) % 2)
                 frame = np.frombuffer(chunk[:usable], dtype="<i2").astype(np.float64)
-                estimate = session.tracker.observe(frame)
+                # Transcription is a CPU-bound model run, so keep it off the
+                # event loop or one socket's inference stalls every other.
+                await asyncio.to_thread(session.observe_chunk, frame)
                 response["type"] = "POSITION"
-                settled = estimate.confidence >= LIVE_CONFIG.jump_confidence_gate
-                response["onsetIndex"] = session.reported.update(estimate.index, settled)
-                response["positionConfidence"] = round(estimate.confidence, 3)
+                response["onsetIndex"] = session.reported.index
+                response["positionConfidence"] = round(session.confidence, 3)
 
             await websocket.send_json(response)
     except WebSocketDisconnect:
@@ -202,6 +237,10 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
         if not timeline:
             return None
         tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
+        if settings.use_learned_transcription:
+            # Match what StreamingTranscriber emits: sustained pitch and note
+            # attacks side by side, so the tracker's dot product scores both.
+            tracker.templates = streaming_transcription.combined_templates(timeline)
         start_index = 0
         raw_start = payload.get("startOnsetIndex")
         if raw_start is not None:

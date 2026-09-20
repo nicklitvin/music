@@ -1,25 +1,34 @@
-"""CLI: run Spotify's basic-pitch over each recording and cache its
-frame-level note activations for the benchmark to use as an alternative
-note-detection front end.
+"""CLI: run the vendored basic-pitch model over each recording and cache
+its frame-level note/onset activations, so the benchmark can score the
+learned note-detection front end without re-running inference every pass.
 
-Runs in its own virtualenv (.venv-transcribe), NOT the app's: basic-pitch
-wants a modern numpy, while the app pins an older numpy/scipy/onnxruntime
-set so oemer's pretrained models still load (see requirements.txt). Keeping
-them apart is the whole point of precomputing to disk -- the benchmark then
-reads plain .npy files with no basic-pitch import anywhere near the app.
+Uses the same model and windowing as the live path
+(app/services/streaming_transcription.py), just over a whole file at once
+-- which is exactly the "offline" arm the streaming arm is compared
+against in scripts/compare_front_ends.py.
 
-    .venv-transcribe/Scripts/python scripts/precompute_basic_pitch.py
+    .venv/Scripts/python scripts/precompute_basic_pitch.py [slug,slug]
 
 Writes content/full/<piece>/_basicpitch.npz (gitignored with the rest of
-content/): `activation` (frames x 88, MIDI 21..108) and `onset` (same
-shape), plus the frame rate needed to line them up with audio time.
+content/): `activation` and `onset`, both (frames x 88, MIDI 21..108),
+plus the frame rate needed to line them up with audio time.
 """
 
 import sys
 import time
 from pathlib import Path
 
-import numpy as np
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import numpy as np  # noqa: E402
+
+from app.services import benchmark_eval as be  # noqa: E402
+from app.services.streaming_transcription import (  # noqa: E402
+    MODEL_FFT_HOP,
+    MODEL_SAMPLE_RATE,
+    load_session,
+    transcribe_whole,
+)
 
 CONTENT = Path(__file__).resolve().parents[2] / "content" / "full"
 
@@ -29,11 +38,8 @@ def log(message: str) -> None:
 
 
 def main() -> None:
-    from basic_pitch.constants import AUDIO_SAMPLE_RATE, FFT_HOP
-    from basic_pitch.inference import predict
-
-    frame_rate = AUDIO_SAMPLE_RATE / FFT_HOP
     only = set(sys.argv[1].split(",")) if len(sys.argv) > 1 else None
+    session = load_session()
 
     for piece_dir in sorted(CONTENT.iterdir()):
         if not piece_dir.is_dir() or (only and piece_dir.name not in only):
@@ -47,15 +53,16 @@ def main() -> None:
             continue
 
         started = time.monotonic()
-        model_output, _, _ = predict(str(wav))
+        # The model wants float audio in [-1, 1]; load_wav yields int16 scale.
+        audio = be.load_wav(wav) / 32768.0
+        note, onset = transcribe_whole(audio, be.RATE, session)
         np.savez_compressed(
             out,
-            activation=model_output["note"].astype(np.float32),
-            onset=model_output["onset"].astype(np.float32),
-            frame_rate=np.float64(frame_rate),
+            activation=note.astype(np.float32),
+            onset=onset.astype(np.float32),
+            frame_rate=np.float64(MODEL_SAMPLE_RATE / MODEL_FFT_HOP),
         )
-        log(f"{piece_dir.name}: {model_output['note'].shape[0]} frames "
-            f"in {time.monotonic() - started:.0f}s -> {out.name}")
+        log(f"{piece_dir.name}: {note.shape[0]} frames in {time.monotonic() - started:.0f}s -> {out.name}")
 
 
 if __name__ == "__main__":

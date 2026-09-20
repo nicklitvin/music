@@ -17,12 +17,21 @@ the evidence the tracker is given:
               concatenating [sustain | struck] templates and evidence, so
               the tracker's existing dot product sums both matches.
 
-Needs scripts/precompute_basic_pitch.py to have been run first (it uses
-its own virtualenv; see that file). Reads only cached .npz, so nothing
-here imports basic-pitch or disturbs the app's pinned dependencies.
+  streaming   the same as `attack`, but the audio is fed through
+              StreamingTranscriber in 75ms chunks exactly as the WebSocket
+              handler does, instead of the model seeing the whole file at
+              once. This is the number that says what the live path
+              actually delivers: the model only ever sees a trailing
+              window, frames arrive late and in bursts, and nothing may
+              depend on audio that hasn't been played yet.
+
+`--only` limits pieces, `--starts` sets how many start points per piece.
+Needs scripts/precompute_basic_pitch.py to have been run first for the
+non-streaming arms (the streaming arm runs the model live, so it is
+slower).
 
     .venv/Scripts/python scripts/compare_front_ends.py [--only slug,slug]
-        [--attack-weight 0.35] [--starts 15]
+        [--attack-weight 0.35] [--starts 15] [--streaming]
 """
 
 import argparse
@@ -39,10 +48,37 @@ from app.routers.audio_ws import LIVE_CONFIG, ReportedPosition  # noqa: E402
 from app.services import benchmark_eval as be  # noqa: E402
 from app.services.note_estimation import MIN_MIDI, MAX_MIDI, pitch_to_midi  # noqa: E402
 from app.services.position_markov import MarkovPositionTracker, build_templates  # noqa: E402
+from app.services.streaming_transcription import (  # noqa: E402
+    StreamingTranscriber,
+    combined_salience,
+    load_session,
+)
 
 CONTENT = Path(__file__).resolve().parents[2] / "content" / "full"
 TARGET_SECONDS = be.START_POINT_TARGET_SECONDS
 FRONT_ENDS = ("harmonic", "basicpitch", "attack")
+
+
+def stream_salience(audio: np.ndarray, frame_samples, attack_weight: float, session) -> list[np.ndarray]:
+    """Drive StreamingTranscriber exactly as the WebSocket handler does:
+    75ms chunks in, salience out, nothing depending on future audio.
+
+    Hops the transcriber hasn't produced yet (the lead-in before its first
+    window is full, and the trailing-context margin) come back as zeros,
+    which the tracker treats as "no evidence" -- the same thing a live
+    listener would have at that moment.
+    """
+    transcriber = StreamingTranscriber(session=session, input_rate=be.RATE, hop_samples=be.HOP,
+                                       attack_weight=attack_weight)
+    width = None
+    produced: list[np.ndarray] = []
+    for start in frame_samples:
+        produced.extend(transcriber.push(audio[start:start + be.HOP] / 32768.0))
+        if width is None and produced:
+            width = len(produced[0])
+    width = width or 176
+    blank = np.zeros(width)
+    return [produced[i] if i < len(produced) else blank for i in range(len(frame_samples))]
 
 
 def unit(vector: np.ndarray) -> np.ndarray:
@@ -74,7 +110,8 @@ def resample(matrix: np.ndarray, fps: float, frame_samples, sharpen: float = 2.0
     return out
 
 
-def evaluate(slug: str, piece_dir: Path, starts_wanted: int, attack_weight: float) -> dict | None:
+def evaluate(slug: str, piece_dir: Path, starts_wanted: int, attack_weight: float,
+             front_ends, session=None) -> dict | None:
     cache = piece_dir / "_basicpitch.npz"
     notes_json = piece_dir / "notes.json"
     wav = piece_dir / "_performance_16k.wav"
@@ -101,15 +138,19 @@ def evaluate(slug: str, piece_dir: Path, starts_wanted: int, attack_weight: floa
     struck_t = struck_templates(timeline)
 
     results = {}
-    for front_end in FRONT_ENDS:
+    attack_templates = np.hstack([sustain_t * (1 - attack_weight), struck_t * attack_weight])
+    for front_end in front_ends:
         if front_end == "harmonic":
             templates, evidence = sustain_t, [f[0] for f in harmonic_frames]
         elif front_end == "basicpitch":
             templates, evidence = sustain_t, sustain
+        elif front_end == "streaming":
+            templates = attack_templates
+            evidence = stream_salience(audio, frame_samples, attack_weight, session)
         else:
-            weight = attack_weight
-            templates = np.hstack([sustain_t * (1 - weight), struck_t * weight])
-            evidence = [np.concatenate([s * (1 - weight), a * weight]) for s, a in zip(sustain, attack)]
+            templates = attack_templates
+            evidence = [np.concatenate([s * (1 - attack_weight), a * attack_weight])
+                        for s, a in zip(sustain, attack)]
 
         within = locked = 0
         blank = np.zeros(be.HOP)
@@ -146,22 +187,27 @@ def main() -> None:
     parser.add_argument("--starts", type=int, default=15)
     parser.add_argument("--attack-weight", type=float, default=0.35,
                         help="How much of the evidence is note attacks vs sustain (0 = sustain only)")
+    parser.add_argument("--streaming", action="store_true",
+                        help="Also run the live path: audio fed through StreamingTranscriber in 75ms chunks")
     args = parser.parse_args()
     only = set(args.only.split(",")) if args.only else None
 
-    totals = {name: [0, 0, 0] for name in FRONT_ENDS}
+    front_ends = FRONT_ENDS + (("streaming",) if args.streaming else ())
+    session = load_session() if args.streaming else None
+
+    totals = {name: [0, 0, 0] for name in front_ends}
     started = time.time()
-    header = f"{'piece':15s}" + "".join(f"{name:>22s}" for name in FRONT_ENDS)
+    header = f"{'piece':15s}" + "".join(f"{name:>22s}" for name in front_ends)
     print(header)
-    print(f"{'':15s}" + "".join(f"{'within5s / locked':>22s}" for _ in FRONT_ENDS))
+    print(f"{'':15s}" + "".join(f"{'within5s / locked':>22s}" for _ in front_ends))
     for piece_dir in sorted(CONTENT.iterdir()):
         if not piece_dir.is_dir() or (only and piece_dir.name not in only):
             continue
-        result = evaluate(piece_dir.name, piece_dir, args.starts, args.attack_weight)
+        result = evaluate(piece_dir.name, piece_dir, args.starts, args.attack_weight, front_ends, session)
         if result is None:
             continue
         row = f"{piece_dir.name:15s}"
-        for name in FRONT_ENDS:
+        for name in front_ends:
             r = result[name]
             totals[name][0] += r["within"]
             totals[name][1] += r["locked"]
@@ -170,7 +216,7 @@ def main() -> None:
         print(row, flush=True)
 
     print()
-    for name in FRONT_ENDS:
+    for name in front_ends:
         within, locked, total = totals[name]
         if not total:
             continue

@@ -1,10 +1,19 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { processScore } from './api'
 import { nextSortOrderForNewScore, saveScore } from './db'
+import { countPdfPages } from './pdfPages'
+
+// Measured on the machine this runs on: oemer takes a median 308s per page
+// (296-374s over 57 pages), CPU-only. Used to turn "processing..." into an
+// actual estimate -- at this rate a 12-page sheet is over an hour, which the
+// reader deserves to be told up front rather than discovering.
+export const SECONDS_PER_PAGE = 308
 
 export interface PendingUpload {
   id: string
   fileName: string
+  startedAt: number
+  pageCount?: number
   error?: string
 }
 
@@ -25,7 +34,15 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
   const startUpload = useCallback((file: File) => {
     const id = crypto.randomUUID()
-    setPending((prev) => [{ id, fileName: file.name }, ...prev])
+    setPending((prev) => [{ id, fileName: file.name, startedAt: Date.now() }, ...prev])
+
+    // Fills the estimate in once the page count is known; the upload is
+    // already under way by then and doesn't wait for it.
+    void countPdfPages(file).then((pageCount) => {
+      if (pageCount) {
+        setPending((prev) => prev.map((p) => (p.id === id ? { ...p, pageCount } : p)))
+      }
+    })
 
     void (async () => {
       try {
