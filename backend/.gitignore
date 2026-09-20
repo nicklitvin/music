@@ -1,5 +1,9 @@
 __pycache__/
 *.pyc
 .venv/
+# basic-pitch's own env: it wants a modern numpy, the app pins an older one
+# for oemer, so the transcription front end is installed separately (see
+# scripts/precompute_basic_pitch.py).
+.venv-transcribe/
 .pytest_cache/
 .env

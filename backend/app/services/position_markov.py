@@ -299,8 +299,18 @@ class MarkovPositionTracker:
         moved = (1.0 - jump) * moved + jump / len(moved)
         return moved / moved.sum()
 
-    def observe(self, frame: np.ndarray) -> PositionEstimate:
-        salience = self.estimator.estimate(frame)
+    def observe(self, frame: np.ndarray, salience: np.ndarray | None = None) -> PositionEstimate:
+        """Fold one frame of audio into the belief.
+
+        `salience` lets a caller supply per-pitch evidence computed some
+        other way (a learned transcription model, say) instead of this
+        tracker's own estimator; it must be a unit-norm vector over
+        MIN_MIDI..MAX_MIDI, the same shape build_templates produces. The
+        frame is still needed for its length (frame duration drives the
+        transition model).
+        """
+        if salience is None:
+            salience = self.estimator.estimate(frame)
         if self._expected_frames is None:
             self._transition_log_probs(len(frame) / self.estimator.sample_rate)
 
