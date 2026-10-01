@@ -50,6 +50,19 @@ describe('Scores', () => {
     expect(screen.getByText('1 page')).toBeInTheDocument()
   })
 
+  it('opens the upload sheet in place rather than navigating to a page', async () => {
+    const user = userEvent.setup()
+    renderScores()
+    await screen.findByText(/no scores yet/i)
+
+    await user.click(screen.getByRole('button', { name: /upload/i }))
+
+    expect(await screen.findByRole('dialog', { name: /upload sheet music/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /choose a pdf/i })).toBeInTheDocument()
+    // Still on the library, not routed away.
+    expect(window.location.pathname).toBe('/')
+  })
+
   it('asks for confirmation before deleting, and only deletes on confirm', async () => {
     const user = userEvent.setup()
     await saveScore(makeScore({ title: 'Moonlight Sonata' }))

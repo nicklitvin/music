@@ -110,6 +110,29 @@ def test_set_moves_immediately():
     assert reported.index == 90
 
 
+def test_the_model_cannot_move_the_page_for_a_while_after_a_manual_move():
+    # Turning the page by hand says the model is wrong. Without a hold the
+    # two fight: the reader scrolls, the model scrolls back, repeat.
+    from app.routers.audio_ws import MANUAL_HOLD_FRAMES
+
+    reported = ReportedPosition(index=10, acquired=True)
+    reported.set(90)
+
+    for _ in range(MANUAL_HOLD_FRAMES):
+        assert reported.update(500, settled=True) == 90
+
+    # ...and once it lapses the model is back in charge, still rate-limited.
+    assert reported.update(500, settled=True) != 90
+
+
+def test_a_manual_move_is_respected_even_before_the_tracker_settles():
+    # The acquiring path snaps straight to the belief; a hint must still
+    # win over that, or hinting during the first seconds does nothing.
+    reported = ReportedPosition(index=0)
+    reported.set(40)
+    assert reported.update(900, settled=False) == 40
+
+
 def test_backward_creep_is_capped():
     reported = ReportedPosition(index=20, back=3, confirm=8, acquired=True)
     assert reported.update(0) == 17

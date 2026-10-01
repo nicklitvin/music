@@ -17,5 +17,10 @@ class Settings(BaseSettings):
     # changing, and both paths are exercised by the test suite.
     use_learned_transcription: bool = True
 
+    # How many pages to run OMR on at once. 0 picks a value from the core
+    # count, capped low because oemer is memory-hungry rather than
+    # core-hungry -- raise it only if there is RAM headroom to spare.
+    omr_workers: int = 0
+
 
 settings = Settings()

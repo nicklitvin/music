@@ -30,6 +30,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     setThemePreference(next)
   }
 
+  const percent = usage && usage.quota > 0 ? Math.min(100, (usage.used / usage.quota) * 100) : 0
+
   return (
     <Modal title="Settings" onClose={onClose}>
       <section className="settings-section">
@@ -51,20 +53,24 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
       <section className="settings-section">
         <h3>Storage</h3>
-        <p>
-          Everything you upload -- page images, sheet music, and detected notes -- is stored only in this
-          browser's IndexedDB, on this device. Nothing is uploaded to a server for storage.
-        </p>
-        {usage && (
-          <p className="subtle-text">
-            Using about {formatBytes(usage.used)} of {formatBytes(usage.quota)} available on this device.
-          </p>
+        {usage ? (
+          <>
+            <div
+              className="storage-bar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(percent)}
+            >
+              <div className="storage-bar-fill" style={{ width: `${Math.max(percent, 1)}%` }} />
+            </div>
+            <p className="storage-figures">
+              <strong>{formatBytes(usage.used)}</strong> used of {formatBytes(usage.quota)}
+            </p>
+          </>
+        ) : (
+          <p className="subtle-text">Checking…</p>
         )}
-      </section>
-
-      <section className="settings-section">
-        <h3>Account</h3>
-        <p className="subtle-text">Sign-in isn't available yet. Coming soon.</p>
       </section>
     </Modal>
   )

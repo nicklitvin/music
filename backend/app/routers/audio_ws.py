@@ -45,6 +45,14 @@ LIVE_CONFIG = MarkovConfig(
 )
 
 
+# Frames (75ms each) the model is not allowed to move the position after
+# the reader has moved it by hand. Turning the page yourself is a statement
+# that the model is wrong, and without this the two fight each other: the
+# reader scrolls, the model scrolls back, repeat. A few seconds of quiet
+# lets them get where they want and start playing from there.
+MANUAL_HOLD_FRAMES = 53  # ~4 seconds
+
+
 class ReportedPosition:
     """Rate-limits the onset index sent to the client.
 
@@ -55,10 +63,16 @@ class ReportedPosition:
     longer teleport the highlight across the page. A genuinely large move
     (a restart, skipping a repeat) still happens once the tracker reports
     the new spot consistently for ``confirm`` frames. A hint (scroll or
-    click) sets the position outright.
+    click) sets the position outright, and buys a few seconds during which
+    the model will not move it again.
+
+    `confirm` is deliberately high: at 12 frames a repeated passage only had
+    to win for 0.9s to drag the page away, which measured ~6 spurious page
+    changes a minute on real recordings. 25 halves that at no cost to
+    tracking accuracy.
     """
 
-    def __init__(self, index: int = 0, step: int = 2, back: int = 3, confirm: int = 12,
+    def __init__(self, index: int = 0, step: int = 2, back: int = 3, confirm: int = 25,
                  acquired: bool = False):
         self.index = index
         self._step = step
@@ -67,8 +81,16 @@ class ReportedPosition:
         self._pending: int | None = None
         self._pending_run = 0
         self._acquired = acquired
+        self._hold_frames = 0
 
     def update(self, target: int, settled: bool = False) -> int:
+        # The reader has just moved the page themselves: leave it alone.
+        # The tracker's belief keeps updating underneath, so when the hold
+        # expires it carries on from wherever the music actually is.
+        if self._hold_frames > 0:
+            self._hold_frames -= 1
+            return self.index
+
         # Before the tracker has ever settled there is no established
         # position to protect: the reported index is still the placeholder
         # it was constructed with, and creeping towards the belief two
@@ -103,13 +125,15 @@ class ReportedPosition:
             self.index += self._step if delta > 0 else -self._back
         return self.index
 
-    def set(self, index: int) -> None:
+    def set(self, index: int, hold: bool = True) -> None:
         self.index = index
         self._pending = None
         self._pending_run = 0
         # The reader just said where they are, so there is now a position
         # worth protecting even if the tracker isn't confident yet.
         self._acquired = True
+        if hold:
+            self._hold_frames = MANUAL_HOLD_FRAMES
 
 
 @lru_cache(maxsize=1)

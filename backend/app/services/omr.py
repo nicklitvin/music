@@ -10,6 +10,8 @@ thread pool).
 """
 
 import base64
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 import fitz  # PyMuPDF
@@ -52,6 +54,26 @@ def _combine_music_xml(per_page_xml: list[str]) -> str:
     return "\n".join(f"<!-- page {i} -->\n{xml}" for i, xml in enumerate(per_page_xml))
 
 
+def _extract_one(args: tuple[int, bytes, int, int]) -> tuple[int, list[dict], str]:
+    """Worker entry point: must be module level and picklable."""
+    index, png_bytes, width, height = args
+    boxes, page_xml = oemer_engine.extract_page(png_bytes, index, width, height)
+    return index, [box.model_dump() for box in boxes], page_xml
+
+
+def _worker_count(page_count: int) -> int:
+    """How many pages to OMR at once.
+
+    Pages are independent, so this is embarrassingly parallel and the only
+    real limit is memory: oemer holds a lot per page (a long run of it has
+    been OOM-killed on this machine), so this stays well under the core
+    count rather than saturating it.
+    """
+    if settings.omr_workers > 0:
+        return max(1, min(settings.omr_workers, page_count))
+    return max(1, min(4, (os.cpu_count() or 2) // 3, page_count))
+
+
 def process_pdf(pdf_bytes: bytes) -> OMRResult:
     rendered = render_pages(pdf_bytes)
 
@@ -65,10 +87,26 @@ def process_pdf(pdf_bytes: bytes) -> OMRResult:
         for index, png_bytes, width, height in rendered
     ]
 
+    workers = _worker_count(len(rendered))
+    results: dict[int, tuple[list[NoteBoundingBox], str]] = {}
+    if workers == 1:
+        for item in rendered:
+            index, raw_boxes, page_xml = _extract_one(item)
+            results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
+    else:
+        # A process pool, not threads: oemer's work is CPU-bound Python
+        # (its rule-based passes dominate -- the neural nets are a minority
+        # of the time), so threads would serialise on the GIL. Separate
+        # processes also hand oemer's memory back to the OS between pages
+        # and sidestep its process-global `layers` registry entirely.
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            for index, raw_boxes, page_xml in pool.map(_extract_one, rendered):
+                results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
+
     bounding_boxes: list[NoteBoundingBox] = []
     per_page_xml: list[str] = []
-    for index, png_bytes, width, height in rendered:
-        boxes, page_xml = oemer_engine.extract_page(png_bytes, index, width, height)
+    for index, _, _, _ in rendered:
+        boxes, page_xml = results[index]
         bounding_boxes.extend(boxes)
         per_page_xml.append(page_xml)
 

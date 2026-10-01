@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FileUp, GripVertical, Trash2, Upload, X } from 'lucide-react'
 import { BottomNav } from '../../components/BottomNav'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import { Modal } from '../../components/Modal'
 import { deleteScore, listScores, reorderScores } from '../../lib/db'
 import { useDragReorder } from '../../lib/useDragReorder'
 import { SECONDS_PER_PAGE, useUploadQueue, type PendingUpload } from '../../lib/uploadQueue'
@@ -79,10 +81,12 @@ function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
 
 export function Scores() {
   const navigate = useNavigate()
-  const { pending, dismissError } = useUploadQueue()
+  const { pending, startUpload, dismissError } = useUploadQueue()
   const [scores, setScores] = useState<ScoreRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<ScoreRecord | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const thumbnails = useThumbnails(scores)
   const now = useTicker(pending.some((upload) => !upload.error))
 
@@ -107,14 +111,21 @@ export function Scores() {
     setDeleteTarget(null)
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Processing (OMR takes minutes per page) happens in the background via
+    // the upload queue, so the sheet closes immediately -- the new item
+    // shows up at the top of the list with its own progress estimate.
+    startUpload(file)
+    setUploadOpen(false)
+    e.target.value = ''
+  }
+
   const isEmpty = !loading && scores.length === 0 && pending.length === 0
 
   return (
     <div className="scores-page">
-      <header className="scores-header">
-        <h1>Your Scores</h1>
-      </header>
-
       {isEmpty && <p className="scores-empty">No scores yet. Tap Upload below to add your first sheet.</p>}
 
       <ul className="scores-list">
@@ -132,7 +143,7 @@ export function Scores() {
             </div>
             {upload.error && (
               <button className="score-delete" aria-label="Dismiss" onClick={() => dismissError(upload.id)}>
-                ✕
+                <X size={20} />
               </button>
             )}
           </li>
@@ -145,7 +156,7 @@ export function Scores() {
               aria-label="Reorder"
               onPointerDown={onHandlePointerDown(score.id)}
             >
-              ⠿
+              <GripVertical size={20} />
             </button>
             <button className="score-open" onClick={() => navigate(`/scores/${score.id}`)}>
               {thumbnails.get(score.id) ? (
@@ -161,11 +172,11 @@ export function Scores() {
               </span>
             </button>
             <button
-              className="score-delete"
+              className="score-delete score-delete-danger"
               aria-label={`Delete ${score.title}`}
               onClick={() => setDeleteTarget(score)}
             >
-              🗑
+              <Trash2 size={20} />
             </button>
           </li>
         ))}
@@ -180,10 +191,36 @@ export function Scores() {
         />
       )}
 
+      {uploadOpen && (
+        <Modal title="Upload sheet music" onClose={() => setUploadOpen(false)}>
+          <p>
+            Choose a PDF of piano sheet music. It's parsed into notes and page images stored only on this
+            device.
+          </p>
+          <p className="subtle-text">
+            Recognition takes about 5 minutes per page, so a 10-page sheet is roughly an hour. You'll see an
+            estimate in your library while it works, and you can carry on using the app.
+          </p>
+          <button className="btn btn-primary upload-sheet-btn" onClick={() => fileInputRef.current?.click()}>
+            <FileUp size={18} /> Choose a PDF
+          </button>
+        </Modal>
+      )}
+
+      <input
+        ref={fileInputRef}
+        className="visually-hidden"
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileChange}
+      />
+
       <BottomNav
-        infoTitle="Your Scores"
+        infoTitle="Your scores"
         infoContent={INFO_CONTENT}
-        actions={[{ key: 'upload', label: 'Upload', icon: '⬆️', onClick: () => navigate('/upload') }]}
+        actions={[
+          { key: 'upload', label: 'Upload', icon: <Upload size={20} />, onClick: () => setUploadOpen(true) },
+        ]}
       />
     </div>
   )

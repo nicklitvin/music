@@ -178,20 +178,10 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   min-height: 100dvh;
 }
 
-.scores-header {
-  padding: 20px 16px 4px;
-  text-align: left;
-}
-
-.scores-header h1 {
-  font-size: 26px;
-  margin: 0;
-}
-
 .scores-list {
   list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: calc(12px + env(safe-area-inset-top)) 0 0;
 }
 
 .score-item {
@@ -300,8 +290,21 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   cursor: pointer;
 }
 
+.score-delete {
+  color: var(--text);
+}
+
 .score-delete:hover {
   background: var(--code-bg);
+}
+
+/* Deleting is the one destructive thing in the list -- colour it like it. */
+.score-delete-danger {
+  color: #e03c31;
+}
+
+.score-delete-danger:hover {
+  background: rgba(224, 60, 49, 0.12);
 }
 
 .score-item-pending {
@@ -336,21 +339,26 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
 
 /* Upload ------------------------------------------------------------------ */
 
-.upload {
-  padding: 0 16px calc(96px + env(safe-area-inset-bottom));
-  text-align: left;
+.upload-sheet-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 14px 20px;
 }
 
-.upload-picker {
-  display: block;
-  margin: 24px 0 12px;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.upload-picker input[type='file'] {
-  display: none;
-}
-
-/* Sheet viewer (fullscreen, swipe-paged) ---------------------------------- */
+/* Sheet viewer (fullscreen, continuous scroll) ---------------------------- */
 
 .sheet-page {
   position: fixed;
@@ -373,33 +381,29 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   text-align: center;
 }
 
-.sheet-viewport {
+/* One continuous sheet: pages butt together with no seam, so scrolling
+   reads as a single long document rather than a stack of pages. */
+.sheet-scroll {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  touch-action: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
 }
 
-.sheet-track {
+.sheet-page-block {
+  display: block;
+  font-size: 0; /* kills the inline-image baseline gap between pages */
+}
+
+.sheet-page-image {
+  display: block;
   width: 100%;
-}
-
-.sheet-slide {
-  width: 100%;
-  height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 8px;
-}
-
-.sheet-slide-image {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
   height: auto;
-  object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -463,6 +467,35 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
 .pill-btn-emphasized {
   background: var(--accent-bg);
   color: var(--accent);
+}
+
+/* Recording in progress: the one pill that should read as "live". */
+.pill-btn-danger {
+  background: rgba(224, 60, 49, 0.14);
+  color: #e03c31;
+}
+
+/* Storage meter ----------------------------------------------------------- */
+
+.storage-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.storage-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.storage-figures {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--text);
 }
 
 /* Modals -------------------------------------------------------------- */

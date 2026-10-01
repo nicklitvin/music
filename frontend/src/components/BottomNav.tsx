@@ -1,22 +1,24 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Info, Settings } from 'lucide-react'
 import { Modal } from './Modal'
 import { SettingsModal } from './SettingsModal'
 
 export interface PillAction {
   key: string
   label: string
-  icon: string
+  icon: ReactNode
   onClick: () => void
   disabled?: boolean
   emphasized?: boolean
+  danger?: boolean
 }
 
 interface BottomNavProps {
   infoTitle: string
   infoContent: ReactNode
   // Page-specific actions, rendered between the always-present Info and
-  // Settings pills (e.g. Upload on the scores page, Previous/Next/Download
+  // Settings pills (e.g. Upload on the scores page, Previous/Record/Next
   // on the sheet page).
   actions?: PillAction[]
 }
@@ -31,22 +33,24 @@ export function BottomNav({ infoTitle, infoContent, actions = [] }: BottomNavPro
     <>
       <nav className="bottom-pill" aria-label="Main navigation">
         <button className="pill-btn" onClick={() => setOpenModal('info')}>
-          <span aria-hidden>ℹ️</span>
+          <Info size={20} aria-hidden />
           <span className="pill-label">Info</span>
         </button>
         {actions.map((action) => (
           <button
             key={action.key}
-            className={`pill-btn${action.emphasized ? ' pill-btn-emphasized' : ''}`}
+            className={`pill-btn${action.emphasized ? ' pill-btn-emphasized' : ''}${
+              action.danger ? ' pill-btn-danger' : ''
+            }`}
             onClick={action.onClick}
             disabled={action.disabled}
           >
-            <span aria-hidden>{action.icon}</span>
+            {action.icon}
             <span className="pill-label">{action.label}</span>
           </button>
         ))}
         <button className="pill-btn" onClick={() => setOpenModal('settings')}>
-          <span aria-hidden>⚙️</span>
+          <Settings size={20} aria-hidden />
           <span className="pill-label">Settings</span>
         </button>
       </nav>

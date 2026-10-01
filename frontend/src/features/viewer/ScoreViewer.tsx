@@ -1,29 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import JSZip from 'jszip'
+import { ChevronDown, ChevronUp, Download, Mic, Square } from 'lucide-react'
 import { getScore } from '../../lib/db'
 import type { ScorePositionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
 import { buildOnsets } from '../../audio/positionTracking'
 import { BottomNav, type PillAction } from '../../components/BottomNav'
 
-// The tracked page only changes once the backend has reported a different
-// page for this many consecutive frames -- a single ambiguous frame can't
-// flip the page back and forth.
-const PAGE_CHANGE_FRAMES = 2
-// Vertical drag distance (px) needed to commit a page turn, TikTok-style.
-const SWIPE_THRESHOLD_PX = 80
-// Tapping "Previous" this many times while already on the first page
-// reveals the hidden Download action -- a deliberate, undiscoverable-by-
-// accident gesture, not a normal navigation affordance.
+// After the reader moves the sheet themselves, the model is not allowed to
+// move it for this long. The backend holds its reported position for a
+// comparable window; this is the same promise kept on the client, so manual
+// scrolling is honoured too, not just the Previous/Next buttons.
+const MANUAL_HOLD_MS = 4000
+// How far the tracked position must be from where the sheet already sits
+// before it is worth moving, as a fraction of the viewport. Without it the
+// sheet twitches continuously as the estimate wobbles by a note or two.
+const FOLLOW_DEADZONE = 0.3
+// Where the current music should sit on screen once followed.
+const FOLLOW_ANCHOR = 0.35
+// Tapping "Previous" this many times while already at the top reveals the
+// hidden Download action -- a deliberate, undiscoverable-by-accident
+// gesture, not a normal navigation affordance.
 const DOWNLOAD_UNLOCK_TAPS = 7
 
 const INFO_CONTENT = (
   <>
-    <p>Play along -- the page turns itself as it hears where you are.</p>
+    <p>
+      The whole sheet is one continuous scroll. Press Record and play -- the sheet follows where it hears you.
+    </p>
     <ul>
-      <li>Drag the sheet up or down to turn pages by hand, like flipping through a feed.</li>
-      <li>Previous / Next below do the same thing.</li>
+      <li>Scroll by hand any time; the model won't fight you for a few seconds after you do.</li>
+      <li>Previous / Next move by one page.</li>
+      <li>Nothing is recorded or uploaded -- audio is analysed as it arrives and discarded.</li>
     </ul>
   </>
 )
@@ -36,14 +45,13 @@ export function ScoreViewer() {
   const { scoreId } = useParams<{ scoreId: string }>()
   const [score, setScore] = useState<ScoreRecord | null>(null)
   const [pageUrls, setPageUrls] = useState<string[]>([])
-  const [pageIndex, setPageIndex] = useState(0)
-  const [dragPixels, setDragPixels] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
+  const [listening, setListening] = useState(false)
   const [downloadUnlocked, setDownloadUnlocked] = useState(false)
 
-  const pointerRef = useRef<{ id: number; startY: number } | null>(null)
-  const pendingPageRef = useRef<{ index: number; count: number } | null>(null)
-  const prevTapsAtFirstPageRef = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([])
+  const holdUntilRef = useRef(0)
+  const prevTapsAtTopRef = useRef(0)
 
   useEffect(() => {
     if (!scoreId) return
@@ -61,7 +69,7 @@ export function ScoreViewer() {
   }, [pageUrls])
 
   // The same onset grouping the backend tracker indexes into, so a
-  // reported onsetIndex can be mapped back to which page it's on.
+  // reported onsetIndex can be mapped back to a place on the sheet.
   const onsets = useMemo(() => (score ? buildOnsets(score.boundingBoxes) : []), [score])
 
   const pageArrayIndexByPageNumber = useMemo(() => {
@@ -70,34 +78,43 @@ export function ScoreViewer() {
     return map
   }, [score])
 
-  const onsetPageIndex = useMemo(
-    () => onsets.map((onset) => pageArrayIndexByPageNumber.get(onset[0].pageIndex) ?? 0),
-    [onsets, pageArrayIndexByPageNumber],
+  const holdOff = useCallback(() => {
+    holdUntilRef.current = Date.now() + MANUAL_HOLD_MS
+  }, [])
+
+  // Where on the continuous sheet an onset lives: its page's offset plus
+  // how far down that page the note sits. Following the note's own y is
+  // what makes this feel like the sheet is tracking the music rather than
+  // snapping between pages.
+  const offsetForOnset = useCallback(
+    (onsetIndex: number): number | null => {
+      const onset = onsets[onsetIndex]
+      const container = scrollRef.current
+      if (!onset || !container || !score) return null
+      const note = onset[0]
+      const pageIndex = pageArrayIndexByPageNumber.get(note.pageIndex)
+      if (pageIndex === undefined) return null
+      const element = pageRefs.current[pageIndex]
+      const page = score.pages[pageIndex]
+      if (!element || !page) return null
+      const withinPage = (note.y / page.height) * element.offsetHeight
+      return element.offsetTop + withinPage - container.clientHeight * FOLLOW_ANCHOR
+    },
+    [onsets, pageArrayIndexByPageNumber, score],
   )
 
   const handlePosition = useCallback(
     (event: ScorePositionEvent) => {
-      const target = onsetPageIndex[event.onsetIndex]
-      if (target === undefined) return
-      setPageIndex((current) => {
-        if (target === current) {
-          pendingPageRef.current = null
-          return current
-        }
-        const pending = pendingPageRef.current
-        if (pending && pending.index === target) {
-          pending.count += 1
-          if (pending.count >= PAGE_CHANGE_FRAMES) {
-            pendingPageRef.current = null
-            return target
-          }
-        } else {
-          pendingPageRef.current = { index: target, count: 1 }
-        }
-        return current
-      })
+      const container = scrollRef.current
+      if (!container || Date.now() < holdUntilRef.current) return
+      const target = offsetForOnset(event.onsetIndex)
+      if (target === null) return
+      // Only move for a real change of place, not for the estimate
+      // wobbling by a note or two.
+      if (Math.abs(target - container.scrollTop) < container.clientHeight * FOLLOW_DEADZONE) return
+      container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' })
     },
-    [onsetPageIndex],
+    [offsetForOnset],
   )
 
   const { error: trackingError, start, stop, sendHint } = useAudioTracking({
@@ -106,81 +123,68 @@ export function ScoreViewer() {
     scoreNotes: score?.boundingBoxes,
   })
 
-  // Listening is the whole point of this page -- start as soon as there is
-  // a score to follow, stop when leaving.
-  useEffect(() => {
-    if (!score) return
-    start()
-    return () => stop()
-    // start/stop change identity every render (they close over callbacks
-    // above); this should still only fire once per score load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [score])
+  // Tracking starts when the reader asks for it, not on arrival: opening a
+  // sheet to read should not switch the microphone on.
+  const toggleListening = useCallback(() => {
+    if (listening) {
+      stop()
+      setListening(false)
+    } else {
+      void start()
+      setListening(true)
+    }
+  }, [listening, start, stop])
 
-  const hintPage = useCallback(
-    (index: number) => {
-      const onsetIndex = onsetPageIndex.findIndex((p) => p === index)
-      if (onsetIndex >= 0) sendHint(onsetIndex, { firm: true })
-    },
-    [onsetPageIndex, sendHint],
-  )
+  useEffect(() => () => stop(), [stop])
+
+  const currentPage = useCallback((): number => {
+    const container = scrollRef.current
+    if (!container || !score) return 0
+    const middle = container.scrollTop + container.clientHeight * FOLLOW_ANCHOR
+    let page = 0
+    score.pages.forEach((_, index) => {
+      const element = pageRefs.current[index]
+      if (element && element.offsetTop <= middle) page = index
+    })
+    return page
+  }, [score])
 
   const goToPage = useCallback(
     (index: number) => {
-      pendingPageRef.current = null
-      setPageIndex(index)
-      hintPage(index)
+      const container = scrollRef.current
+      const element = pageRefs.current[index]
+      if (!container || !element) return
+      holdOff()
+      container.scrollTo({ top: element.offsetTop, behavior: 'smooth' })
+      // Tell the tracker where the reader went, so when the hold lapses it
+      // carries on from here instead of yanking back.
+      const onsetIndex = onsets.findIndex((onset) => {
+        const page = pageArrayIndexByPageNumber.get(onset[0].pageIndex)
+        return page === index
+      })
+      if (onsetIndex >= 0) sendHint(onsetIndex, { firm: true })
     },
-    [hintPage],
+    [holdOff, onsets, pageArrayIndexByPageNumber, sendHint],
   )
 
-  const handlePrevious = useCallback(
-    (fromSwipe: boolean) => {
-      if (pageIndex === 0) {
-        if (!fromSwipe) {
-          prevTapsAtFirstPageRef.current += 1
-          if (prevTapsAtFirstPageRef.current >= DOWNLOAD_UNLOCK_TAPS) setDownloadUnlocked(true)
-        }
-        return
-      }
-      prevTapsAtFirstPageRef.current = 0
-      goToPage(pageIndex - 1)
-    },
-    [pageIndex, goToPage],
-  )
+  const handlePrevious = useCallback(() => {
+    const page = currentPage()
+    if (page === 0) {
+      prevTapsAtTopRef.current += 1
+      if (prevTapsAtTopRef.current >= DOWNLOAD_UNLOCK_TAPS) setDownloadUnlocked(true)
+      return
+    }
+    prevTapsAtTopRef.current = 0
+    goToPage(page - 1)
+  }, [currentPage, goToPage])
 
-  const handleNext = useCallback(
-    (_fromSwipe: boolean) => {
-      if (!score || pageIndex >= score.pages.length - 1) return
-      prevTapsAtFirstPageRef.current = 0
-      goToPage(pageIndex + 1)
-    },
-    [score, pageIndex, goToPage],
-  )
-
-  const onPointerDown = (event: React.PointerEvent) => {
-    pointerRef.current = { id: event.pointerId, startY: event.clientY }
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setIsDragging(true)
-  }
-
-  const onPointerMove = (event: React.PointerEvent) => {
-    if (!pointerRef.current || pointerRef.current.id !== event.pointerId || !score) return
-    let delta = event.clientY - pointerRef.current.startY
-    // Rubber-band resistance at the ends of the score.
-    if (pageIndex === 0 && delta > 0) delta *= 0.35
-    if (pageIndex === score.pages.length - 1 && delta < 0) delta *= 0.35
-    setDragPixels(delta)
-  }
-
-  const onPointerUp = (event: React.PointerEvent) => {
-    if (!pointerRef.current || pointerRef.current.id !== event.pointerId) return
-    pointerRef.current = null
-    setIsDragging(false)
-    if (dragPixels <= -SWIPE_THRESHOLD_PX) handleNext(true)
-    else if (dragPixels >= SWIPE_THRESHOLD_PX) handlePrevious(true)
-    setDragPixels(0)
-  }
+  const handleNext = useCallback(() => {
+    if (!score) return
+    const page = currentPage()
+    if (page >= score.pages.length - 1) return
+    prevTapsAtTopRef.current = 0
+    goToPage(page + 1)
+  }, [currentPage, goToPage, score])
 
   const handleDownload = useCallback(async () => {
     if (!score) return
@@ -199,51 +203,50 @@ export function ScoreViewer() {
   if (!score) return <p>Loading score…</p>
 
   const actions: PillAction[] = [
-    { key: 'prev', label: 'Previous', icon: '◀', onClick: () => handlePrevious(false), disabled: pageIndex === 0 },
+    { key: 'prev', label: 'Previous', icon: <ChevronUp size={20} />, onClick: handlePrevious },
     {
-      key: 'next',
-      label: 'Next',
-      icon: '▶',
-      onClick: () => handleNext(false),
-      disabled: pageIndex === score.pages.length - 1,
+      key: 'record',
+      label: listening ? 'Stop' : 'Record',
+      icon: listening ? <Square size={20} /> : <Mic size={20} />,
+      onClick: toggleListening,
+      emphasized: !listening,
+      danger: listening,
     },
+    { key: 'next', label: 'Next', icon: <ChevronDown size={20} />, onClick: handleNext },
   ]
   if (downloadUnlocked) {
-    actions.push({ key: 'download', label: 'Download', icon: '⬇️', onClick: handleDownload, emphasized: true })
+    actions.push({
+      key: 'download',
+      label: 'Download',
+      icon: <Download size={20} />,
+      onClick: handleDownload,
+      emphasized: true,
+    })
   }
 
   return (
     <div className="sheet-page">
       {trackingError && <div className="sheet-tracking-error">{trackingError}</div>}
 
-      <div
-        className="sheet-viewport"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <div
-          className="sheet-track"
-          style={{
-            height: `${score.pages.length * 100}dvh`,
-            transform: `translateY(calc(${-pageIndex * 100}dvh + ${dragPixels}px))`,
-            transition: isDragging ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        >
-          {score.pages.map((page, index) => (
-            <div className="sheet-slide" key={page.pageIndex}>
-              <img
-                className="sheet-slide-image"
-                src={pageUrls[index]}
-                width={page.width}
-                height={page.height}
-                alt={`Page ${page.pageIndex + 1}`}
-                draggable={false}
-              />
-            </div>
-          ))}
-        </div>
+      <div className="sheet-scroll" ref={scrollRef} onPointerDown={holdOff} onWheel={holdOff}>
+        {score.pages.map((page, index) => (
+          <div
+            className="sheet-page-block"
+            key={page.pageIndex}
+            ref={(el) => {
+              pageRefs.current[index] = el
+            }}
+          >
+            <img
+              className="sheet-page-image"
+              src={pageUrls[index]}
+              width={page.width}
+              height={page.height}
+              alt={`Page ${page.pageIndex + 1}`}
+              draggable={false}
+            />
+          </div>
+        ))}
       </div>
 
       <BottomNav infoTitle={score.title} infoContent={INFO_CONTENT} actions={actions} />
