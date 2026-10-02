@@ -11,6 +11,7 @@ thread pool).
 
 import base64
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
@@ -61,17 +62,64 @@ def _extract_one(args: tuple[int, bytes, int, int]) -> tuple[int, list[dict], st
     return index, [box.model_dump() for box in boxes], page_xml
 
 
+def available_memory_gb() -> float | None:
+    """Free physical memory, or None if it can't be determined here."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatus()
+            status.dwLength = ctypes.sizeof(MemoryStatus)
+            if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return None
+            return status.ullAvailPhys / 1024**3
+        with open("/proc/meminfo") as handle:
+            for line in handle:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 1024**2
+    except Exception:
+        return None
+    return None
+
+
+# Rough peak resident size of one oemer page run. It is the binding
+# constraint on parallelism -- see _worker_count.
+OEMER_MEMORY_GB = 1.5
+
+
 def _worker_count(page_count: int) -> int:
     """How many pages to OMR at once.
 
-    Pages are independent, so this is embarrassingly parallel and the only
-    real limit is memory: oemer holds a lot per page (a long run of it has
-    been OOM-killed on this machine), so this stays well under the core
-    count rather than saturating it.
+    Pages are independent, so this is embarrassingly parallel -- but oemer
+    is memory-hungry rather than core-hungry, and overcommitting gets the
+    whole run OOM-killed partway through (which has happened on this
+    machine, with a desktop busy running other things). So the worker count
+    is bounded by free memory as well as cores, and a loaded machine
+    correctly falls back to processing one page at a time rather than
+    failing.
     """
     if settings.omr_workers > 0:
         return max(1, min(settings.omr_workers, page_count))
-    return max(1, min(4, (os.cpu_count() or 2) // 3, page_count))
+
+    limit = min(4, (os.cpu_count() or 2) // 3, page_count)
+    free = available_memory_gb()
+    if free is not None:
+        # Leave a gigabyte for everything else on the machine.
+        limit = min(limit, int((free - 1.0) // OEMER_MEMORY_GB))
+    return max(1, limit)
 
 
 def process_pdf(pdf_bytes: bytes) -> OMRResult:

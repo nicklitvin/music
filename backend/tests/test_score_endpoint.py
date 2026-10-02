@@ -47,3 +47,36 @@ def test_process_score_rejects_non_pdf(client):
         data={"scoreId": "abc123"},
     )
     assert res.status_code == 400
+
+
+def test_omr_worker_count_backs_off_when_memory_is_short(monkeypatch):
+    # oemer is memory-hungry: overcommitting gets the whole run OOM-killed
+    # partway through, so a busy machine must fall back to one page at a
+    # time rather than failing.
+    from app.services import omr
+
+    monkeypatch.setattr(omr.settings, "omr_workers", 0)
+    monkeypatch.setattr(omr, "available_memory_gb", lambda: 2.0)
+    assert omr._worker_count(10) == 1
+
+    monkeypatch.setattr(omr, "available_memory_gb", lambda: 32.0)
+    assert omr._worker_count(10) > 1
+
+    # Never more workers than there are pages to do.
+    assert omr._worker_count(1) == 1
+
+
+def test_omr_worker_count_is_overridable(monkeypatch):
+    from app.services import omr
+
+    monkeypatch.setattr(omr.settings, "omr_workers", 3)
+    monkeypatch.setattr(omr, "available_memory_gb", lambda: 2.0)
+    assert omr._worker_count(10) == 3
+
+
+def test_omr_worker_count_survives_an_unknown_memory_figure(monkeypatch):
+    from app.services import omr
+
+    monkeypatch.setattr(omr.settings, "omr_workers", 0)
+    monkeypatch.setattr(omr, "available_memory_gb", lambda: None)
+    assert omr._worker_count(10) >= 1
