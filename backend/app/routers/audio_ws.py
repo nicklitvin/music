@@ -93,6 +93,18 @@ class ReportedPosition:
         self._pending_run = 0
         self._acquired = acquired
         self._hold_frames = 0
+        self._window: tuple[int, int] | None = None
+
+    def restrict_to(self, low: int | None, high: int | None = None) -> None:
+        """The onsets currently on the reader's screen (plus whatever
+        lookahead the caller allows). Nothing outside is ever reported."""
+        self._window = None if low is None else (int(low), int(high if high is not None else low))
+
+    def _clamp_to_window(self, target: int) -> int:
+        if self._window is None:
+            return target
+        low, high = self._window
+        return max(low, min(target, high))
 
     def update(self, target: int, settled: bool = False) -> int:
         # The reader has just moved the page themselves: leave it alone.
@@ -110,6 +122,11 @@ class ReportedPosition:
         # a few thousand onsets. So during acquisition the report follows
         # the belief outright, and the rate limiter takes over from the
         # first time the tracker is confident.
+        # Nothing outside the music on screen is ever reported -- including
+        # while acquiring, which is exactly when the model knows least and
+        # would otherwise be free to throw the sheet anywhere.
+        target = self._clamp_to_window(target)
+
         if not self._acquired:
             self._acquired = settled
             self.index = target
@@ -210,6 +227,13 @@ async def track_audio(websocket: WebSocket) -> None:
         reader scrolls (soft) or clicks a spot on the sheet (firm) to fold
         that correction into the belief and move the reported position
         there immediately.
+      * Send ``{"type": "VIEWPORT", "firstOnset": a, "lastOnset": b}`` with
+        the music actually on the reader's screen. The model is then
+        confined to it: a reader is overwhelmingly likely to be on a line
+        they are looking at, so rather than ranking the whole score the
+        model only has to spot the move to the next line. Resend it
+        whenever the visible range changes. ``{"type": "VIEWPORT"}`` with no
+        range lifts the restriction.
 
     With a score initialised, every audio frame is replied to with a
     ``POSITION`` frame: the onset the model believes is sounding
@@ -262,7 +286,8 @@ async def track_audio(websocket: WebSocket) -> None:
 
 
 def _handle_control(text: str, session: _Session | None) -> _Session | None:
-    """Applies an INIT / HINT control frame, returning the (maybe new) session."""
+    """Applies an INIT / HINT / VIEWPORT control frame, returning the
+    (maybe new) session."""
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
@@ -293,6 +318,20 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
             start_index = max(0, min(int(raw_start), len(timeline) - 1))
             tracker.apply_hint(start_index, strength=0.9, width=3.0)
         return _Session(tracker, start_index, acquired=raw_start is not None)
+
+    if kind == "VIEWPORT" and session is not None:
+        first, last = payload.get("firstOnset"), payload.get("lastOnset")
+        if first is None:
+            session.tracker.restrict_to(None)
+            session.reported.restrict_to(None)
+        else:
+            try:
+                low, high = int(first), int(last if last is not None else first)
+            except (TypeError, ValueError):
+                return session
+            session.tracker.restrict_to(low, high)
+            session.reported.restrict_to(low, high)
+        return session
 
     if kind == "HINT" and session is not None:
         try:

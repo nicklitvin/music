@@ -228,6 +228,9 @@ class MarkovPositionTracker:
         # Uniform prior: no assumption about the starting position.
         self._log_belief = np.full(count, -math.log(count) if count else 0.0)
         self._expected_frames: np.ndarray | None = None
+        # Absolute (low, high) onset range the reader is known to be within,
+        # or None for "could be anywhere" -- see `restrict_to`.
+        self._restrict: tuple[int, int] | None = None
 
         # Ratio of the tempo actually being played to the score's marked
         # tempo. 1.0 until there is evidence otherwise.
@@ -347,6 +350,12 @@ class MarkovPositionTracker:
                 hi = center + self.config.search_ahead + 1
                 log_posterior[:lo] = -np.inf
                 log_posterior[hi:] = -np.inf
+            if self._restrict is not None:
+                # Absolute and unconditional: the reader told us what is on
+                # their screen, which outranks anything the audio suggests.
+                low, high = self._restrict
+                log_posterior[:low] = -np.inf
+                log_posterior[high + 1 :] = -np.inf
             log_posterior -= log_posterior.max()
             posterior = np.exp(log_posterior)
             posterior /= posterior.sum()
@@ -358,6 +367,43 @@ class MarkovPositionTracker:
                 return estimate
 
         return self.estimate()
+
+    def restrict_to(self, low: int | None, high: int | None = None) -> None:
+        """Confine the belief to an absolute range of onsets.
+
+        Unlike the config's search window -- which is relative to wherever
+        the model currently thinks it is, and so follows it when it is
+        wrong -- this is a statement from outside about where the reader
+        actually is: the music on their screen. A reader is overwhelmingly
+        likely to be on a line they are looking at, so everywhere else can
+        be ruled out rather than merely made unlikely, and the model's job
+        narrows to spotting the move to the next line.
+
+        Pass None to lift the restriction.
+        """
+        if low is None:
+            self._restrict = None
+            return
+        count = len(self._log_belief)
+        if not count:
+            return
+        lo = max(0, min(int(low), count - 1))
+        hi = count - 1 if high is None else max(lo, min(int(high), count - 1))
+        self._restrict = (lo, hi)
+
+        # Move any belief that is now out of bounds inside them, rather than
+        # leaving the model certain of a place it has just been told it
+        # cannot be.
+        belief = np.exp(self._log_belief - self._log_belief.max())
+        belief /= belief.sum()
+        mask = np.zeros_like(belief)
+        mask[lo : hi + 1] = 1.0
+        inside = belief * mask
+        if inside.sum() <= 0:
+            inside = mask / mask.sum()
+        else:
+            inside /= inside.sum()
+        self._log_belief = np.log(np.maximum(inside, 1e-300))
 
     def apply_hint(self, index: int, strength: float = 0.95, width: float = 3.0) -> PositionEstimate:
         """Fold in an outside claim about where the player is.

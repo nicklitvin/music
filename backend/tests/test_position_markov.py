@@ -315,3 +315,44 @@ def test_hint_strength_zero_leaves_belief_alone():
     before = tracker.estimate().index
 
     assert tracker.apply_hint(len(timeline) - 1, strength=0.0).index == before
+
+
+def test_restrict_to_confines_the_belief_to_the_visible_music():
+    # Distinct onsets, and audio that unambiguously matches a far one. With
+    # the reader's screen declared, the model must stay on screen regardless.
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+    far_frame = render([[midi_to_pitch(pitch_to_midi("C3") + 45)]], frames_each=4)
+
+    tracker = MarkovPositionTracker(timeline, MarkovConfig())
+    tracker.restrict_to(5, 15)
+    feed(tracker, far_frame)
+
+    assert 5 <= tracker.estimate().index <= 15
+
+
+def test_restrict_to_moves_belief_that_is_already_outside_the_range():
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+
+    tracker = MarkovPositionTracker(timeline, MarkovConfig())
+    tracker.apply_hint(50, strength=0.99, width=0.5)
+    assert tracker.estimate().index > 40
+
+    # The reader scrolls somewhere else entirely: being certain of a place
+    # they are demonstrably not looking at is not a state worth keeping.
+    tracker.restrict_to(0, 10)
+    assert tracker.estimate().index <= 10
+
+
+def test_lifting_restrict_to_lets_the_belief_range_again():
+    notes = [note(midi_to_pitch(pitch_to_midi("C3") + i), 100.0 + 50 * i) for i in range(60)]
+    timeline = build_timeline(notes, tempo_bpm=120.0)
+    far_frame = render([[midi_to_pitch(pitch_to_midi("C3") + 45)]], frames_each=4)
+
+    tracker = MarkovPositionTracker(timeline, MarkovConfig())
+    tracker.restrict_to(0, 10)
+    tracker.restrict_to(None)
+    feed(tracker, far_frame)
+
+    assert tracker.estimate().index >= 40

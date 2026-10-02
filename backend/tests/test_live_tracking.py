@@ -123,6 +123,40 @@ def test_the_model_can_never_throw_the_reader_across_the_score():
     assert reported.index == 900
 
 
+def test_reported_position_never_leaves_the_visible_range():
+    # The reader can see onsets 100-140. Whatever the audio suggests, the
+    # page may not be put somewhere they are not looking.
+    reported = ReportedPosition(index=110, step=2, confirm=2, acquired=True)
+    reported.restrict_to(100, 140)
+
+    for _ in range(40):
+        reported.update(900, settled=True)
+    assert 100 <= reported.index <= 140
+
+    for _ in range(40):
+        reported.update(0, settled=True)
+    assert 100 <= reported.index <= 140
+
+
+def test_the_visible_range_also_binds_before_the_tracker_settles():
+    # Acquisition snaps straight to the belief, which is exactly when the
+    # model knows least -- it must still respect the screen.
+    reported = ReportedPosition(index=0)
+    reported.restrict_to(200, 240)
+
+    assert reported.update(5000, settled=False) <= 240
+    assert reported.update(0, settled=False) >= 200
+
+
+def test_lifting_the_restriction_frees_the_position_again():
+    reported = ReportedPosition(index=100, step=2, confirm=2, acquired=True)
+    reported.restrict_to(100, 140)
+    reported.restrict_to(None)
+    for _ in range(40):
+        reported.update(150, settled=True)
+    assert reported.index == 150
+
+
 def test_the_model_cannot_drag_the_reader_backwards_far():
     from app.routers.audio_ws import MAX_MODEL_JUMP_BACK
 

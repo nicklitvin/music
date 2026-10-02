@@ -65,13 +65,25 @@ export function buildLines(onsets: NoteBoundingBox[][]): ScoreLine[] {
   const sorted = [...gaps].sort((a, b) => a - b)
   const typicalGap = sorted[Math.floor(sorted.length / 2)]
 
+  // A piano system is a treble row over a bass row -- two, never more.
+  // Without this cap a run of tight gaps (the last system on a page, or a
+  // passage engraved close together) swallows several systems into one
+  // band, which shows up as the highlight covering half the page.
+  const MAX_ROWS_PER_SYSTEM = 2
   const merged: ScoreLine[] = []
+  const rowsIn: number[] = []
   for (const row of rows) {
     const previous = merged[merged.length - 1]
     const sameSystem =
       previous !== undefined &&
       previous.pageIndex === row.pageIndex &&
+      rowsIn[rowsIn.length - 1] < MAX_ROWS_PER_SYSTEM &&
       row.top - previous.bottom < typicalGap * SAME_SYSTEM_RATIO
+    if (sameSystem) {
+      rowsIn[rowsIn.length - 1] += 1
+    } else {
+      rowsIn.push(1)
+    }
     if (sameSystem) {
       previous.bottom = Math.max(previous.bottom, row.bottom)
       previous.top = Math.min(previous.top, row.top)

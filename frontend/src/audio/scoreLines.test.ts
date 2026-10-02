@@ -49,3 +49,31 @@ describe('buildLines', () => {
     expect(lineForOnset([], 0)).toBeNull()
   })
 })
+
+describe('buildLines merge limits', () => {
+  // Rows at an even spacing with no "system" pairing: nothing should be
+  // merged into a band several lines tall.
+  function evenRows(count: number): NoteBoundingBox[] {
+    const out: NoteBoundingBox[] = []
+    for (let row = 0; row < count; row++) {
+      for (let i = 0; i < 3; i++) out.push(note(100 + i * 100, row * 200, row * 2 + 1))
+    }
+    return out
+  }
+
+  it('never folds more than a grand staff into one line', () => {
+    const lines = buildLines(buildOnsets(evenRows(8)))
+    // At most two rows per line, so at least half as many lines as rows.
+    expect(lines.length).toBeGreaterThanOrEqual(4)
+    for (const line of lines) {
+      expect(line.bottom - line.top).toBeLessThanOrEqual(220)
+    }
+  })
+
+  it('keeps lines in reading order with non-overlapping onset ranges', () => {
+    const lines = buildLines(buildOnsets(evenRows(6)))
+    for (let i = 1; i < lines.length; i++) {
+      expect(lines[i].firstOnset).toBeGreaterThanOrEqual(lines[i - 1].endOnset)
+    }
+  })
+})

@@ -113,5 +113,15 @@ export function useAudioTracking({
     }
   }, [])
 
-  return { isTracking, error, start, stop, sendHint }
+  // Tell the backend which music is actually on screen. It confines the
+  // model to that range, so instead of ranking the whole score it only has
+  // to notice the move to the next line. Pass null to lift the limit.
+  const sendViewport = useCallback((range: { firstOnset: number; lastOnset: number } | null) => {
+    const socket = socketRef.current
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'VIEWPORT', ...(range ?? {}) }))
+    }
+  }, [])
+
+  return { isTracking, error, start, stop, sendHint, sendViewport }
 }
