@@ -397,7 +397,26 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
 
 .sheet-page-block {
   display: block;
+  position: relative;
   font-size: 0; /* kills the inline-image baseline gap between pages */
+}
+
+/* The line currently being played. Tinted rather than outlined so it reads
+   at a glance from a music stand, and kept translucent so the notes under
+   it stay perfectly legible. */
+.sheet-line-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  /* Not theme-derived: the sheet image is white whichever theme is on, so
+     this is tuned against paper, not against the app background. Multiply
+     keeps the notes under it fully legible. */
+  background: rgba(170, 59, 255, 0.17);
+  border-top: 2px solid rgba(170, 59, 255, 0.55);
+  border-bottom: 2px solid rgba(170, 59, 255, 0.55);
+  mix-blend-mode: multiply;
+  transition: top 0.25s ease, height 0.25s ease;
 }
 
 .sheet-page-image {

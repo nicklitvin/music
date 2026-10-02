@@ -48,6 +48,20 @@ MODEL_PATH = Path(__file__).resolve().parent.parent / "assets" / "basic_pitch" /
 # Swept against the benchmark -- 1.0 and 3.0 are both measurably worse.
 SHARPEN = 2.0
 
+# Below this RMS (on audio scaled to [-1, 1]) a frame is silence and must
+# produce *no* evidence at all. This gate is not optional: the model emits a
+# flat ~0.1 activation floor on digital silence and spurious onset spikes on
+# room noise, and unit-norming either turns that nothing into a
+# confident-looking observation -- which reads as the sheet scrolling
+# wildly while nobody is playing. Matches note_estimation's old
+# SILENCE_RMS_THRESHOLD of 500 on the int16 scale.
+SILENCE_RMS = 500 / 32768
+
+# Raw (pre-normalisation) activation below which there is nothing to see
+# either, as a backstop for audio loud enough to pass the RMS gate but
+# containing no actual notes.
+MIN_ACTIVATION = 0.15
+
 # How much of the evidence is note *attacks* rather than sustained pitch.
 # The tracker's templates describe what is ringing at a score position,
 # which is blurry by construction (a held chord looks the same for a
@@ -111,7 +125,13 @@ def combined_salience(note_frame: np.ndarray, onset_frame: np.ndarray, attack_we
 
     Paired with `combined_templates`, the tracker's existing dot product
     against the templates becomes the sum of both matches.
+
+    All zeros when the model saw nothing worth reporting -- the tracker
+    treats that as "no evidence" and holds still, which is the only correct
+    response to silence.
     """
+    if note_frame.max(initial=0.0) < MIN_ACTIVATION:
+        return np.zeros(len(note_frame) + len(onset_frame))
     sustain = _unit(note_frame**SHARPEN)
     attack = _unit(onset_frame**SHARPEN)
     return np.concatenate([sustain * (1.0 - attack_weight), attack * attack_weight])
@@ -211,6 +231,9 @@ class StreamingTranscriber:
         for hop in range(self._emitted_hops, ready_hops):
             hop_start = hop * self.hop_samples
             hop_end = hop_start + self.hop_samples
+            if self._hop_is_silent(hop_start, hop_end):
+                out.append(np.zeros(2 * note.shape[1]))
+                continue
             lo = self._model_frame(hop_start - window_start)
             hi = max(lo + 1, self._model_frame(hop_end - window_start))
             lo = max(0, min(lo, MODEL_FRAMES_PER_WINDOW - 1))
@@ -224,6 +247,22 @@ class StreamingTranscriber:
             self._consumed_before_buffer += len(self._buffer) - keep
             self._buffer = self._buffer[-keep:]
         return out
+
+    def _hop_is_silent(self, hop_start: int, hop_end: int) -> bool:
+        """Level check on the hop's own audio, independent of the model.
+
+        The model will happily hallucinate notes out of room tone; the one
+        thing that reliably says "nobody is playing" is that there is no
+        sound.
+        """
+        lo = hop_start - self._consumed_before_buffer
+        hi = hop_end - self._consumed_before_buffer
+        if lo < 0 or hi > len(self._buffer):
+            return False
+        samples = self._buffer[lo:hi]
+        if not len(samples):
+            return False
+        return float(np.sqrt(np.mean(samples**2))) < SILENCE_RMS
 
     def _model_frame(self, offset_input_samples: int) -> int:
         seconds = offset_input_samples / self.input_rate

@@ -6,6 +6,7 @@ import { getScore } from '../../lib/db'
 import type { ScorePositionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
 import { buildOnsets } from '../../audio/positionTracking'
+import { buildLines, lineForOnset, type ScoreLine } from '../../audio/scoreLines'
 import { BottomNav, type PillAction } from '../../components/BottomNav'
 
 // After the reader moves the sheet themselves, the model is not allowed to
@@ -17,8 +18,9 @@ const MANUAL_HOLD_MS = 4000
 // before it is worth moving, as a fraction of the viewport. Without it the
 // sheet twitches continuously as the estimate wobbles by a note or two.
 const FOLLOW_DEADZONE = 0.3
-// Where the current music should sit on screen once followed.
-const FOLLOW_ANCHOR = 0.35
+// The line being played sits in the middle of the screen, which leaves the
+// line before and after it in view either side.
+const FOLLOW_ANCHOR = 0.5
 // Tapping "Previous" this many times while already at the top reveals the
 // hidden Download action -- a deliberate, undiscoverable-by-accident
 // gesture, not a normal navigation affordance.
@@ -47,6 +49,7 @@ export function ScoreViewer() {
   const [pageUrls, setPageUrls] = useState<string[]>([])
   const [listening, setListening] = useState(false)
   const [downloadUnlocked, setDownloadUnlocked] = useState(false)
+  const [currentLine, setCurrentLine] = useState<ScoreLine | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -71,6 +74,7 @@ export function ScoreViewer() {
   // The same onset grouping the backend tracker indexes into, so a
   // reported onsetIndex can be mapped back to a place on the sheet.
   const onsets = useMemo(() => (score ? buildOnsets(score.boundingBoxes) : []), [score])
+  const lines = useMemo(() => buildLines(onsets), [onsets])
 
   const pageArrayIndexByPageNumber = useMemo(() => {
     const map = new Map<number, number>()
@@ -82,39 +86,39 @@ export function ScoreViewer() {
     holdUntilRef.current = Date.now() + MANUAL_HOLD_MS
   }, [])
 
-  // Where on the continuous sheet an onset lives: its page's offset plus
-  // how far down that page the note sits. Following the note's own y is
-  // what makes this feel like the sheet is tracking the music rather than
-  // snapping between pages.
-  const offsetForOnset = useCallback(
-    (onsetIndex: number): number | null => {
-      const onset = onsets[onsetIndex]
+  // Where on the continuous sheet a line sits: its page's offset plus how
+  // far down that page the line is, centred in the viewport.
+  const offsetForLine = useCallback(
+    (line: ScoreLine): number | null => {
       const container = scrollRef.current
-      if (!onset || !container || !score) return null
-      const note = onset[0]
-      const pageIndex = pageArrayIndexByPageNumber.get(note.pageIndex)
+      if (!container || !score) return null
+      const pageIndex = pageArrayIndexByPageNumber.get(line.pageIndex)
       if (pageIndex === undefined) return null
       const element = pageRefs.current[pageIndex]
       const page = score.pages[pageIndex]
       if (!element || !page) return null
-      const withinPage = (note.y / page.height) * element.offsetHeight
-      return element.offsetTop + withinPage - container.clientHeight * FOLLOW_ANCHOR
+      const middleOfLine = ((line.top + line.bottom) / 2 / page.height) * element.offsetHeight
+      return element.offsetTop + middleOfLine - container.clientHeight * FOLLOW_ANCHOR
     },
-    [onsets, pageArrayIndexByPageNumber, score],
+    [pageArrayIndexByPageNumber, score],
   )
 
   const handlePosition = useCallback(
     (event: ScorePositionEvent) => {
+      const line = lineForOnset(lines, event.onsetIndex)
+      if (!line) return
+      setCurrentLine((previous) => (previous?.firstOnset === line.firstOnset ? previous : line))
+
       const container = scrollRef.current
       if (!container || Date.now() < holdUntilRef.current) return
-      const target = offsetForOnset(event.onsetIndex)
+      const target = offsetForLine(line)
       if (target === null) return
       // Only move for a real change of place, not for the estimate
       // wobbling by a note or two.
       if (Math.abs(target - container.scrollTop) < container.clientHeight * FOLLOW_DEADZONE) return
       container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' })
     },
-    [offsetForOnset],
+    [lines, offsetForLine],
   )
 
   const { error: trackingError, start, stop, sendHint } = useAudioTracking({
@@ -245,6 +249,17 @@ export function ScoreViewer() {
               alt={`Page ${page.pageIndex + 1}`}
               draggable={false}
             />
+            {currentLine?.pageIndex === page.pageIndex && (
+              // Percentages, so the band tracks the image as it scales to
+              // whatever width the screen is.
+              <div
+                className="sheet-line-highlight"
+                style={{
+                  top: `${(currentLine.top / page.height) * 100}%`,
+                  height: `${((currentLine.bottom - currentLine.top) / page.height) * 100}%`,
+                }}
+              />
+            )}
           </div>
         ))}
       </div>

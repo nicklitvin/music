@@ -52,6 +52,17 @@ LIVE_CONFIG = MarkovConfig(
 # lets them get where they want and start playing from there.
 MANUAL_HOLD_FRAMES = 53  # ~4 seconds
 
+# The furthest the *model* may ever move the reader, in onsets. A reader
+# plays forwards: drifting a line or two and being corrected is normal,
+# being thrown from the first page to the last is never right, however
+# consistently a repeated passage matches. Beyond this a target is simply
+# ignored -- large moves are the reader's to make, via a scroll or a tap,
+# which is what `set` is for.
+MAX_MODEL_JUMP_AHEAD = 60
+# Backwards is tighter still: it is almost always a mis-match rather than a
+# genuine repeat, and a repeat the reader actually takes is a manual move.
+MAX_MODEL_JUMP_BACK = 12
+
 
 class ReportedPosition:
     """Rate-limits the onset index sent to the client.
@@ -105,6 +116,12 @@ class ReportedPosition:
             return self.index
 
         delta = target - self.index
+        # Out of reach for the model to decide on its own: hold position and
+        # forget any run of confirmations built up towards it.
+        if delta > MAX_MODEL_JUMP_AHEAD or delta < -MAX_MODEL_JUMP_BACK:
+            self._pending = None
+            self._pending_run = 0
+            return self.index
         if -self._back <= delta <= self._step:
             self.index = target
             self._pending = None

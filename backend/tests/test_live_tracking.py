@@ -80,8 +80,11 @@ def test_a_single_far_target_cannot_teleport_the_highlight():
     # `acquired` = the tracker has already settled somewhere once, so there
     # is an established position worth protecting.
     reported = ReportedPosition(index=5, step=2, confirm=8, acquired=True)
-    # One frame says "onset 200"; the highlight creeps, it does not jump.
-    assert reported.update(200) == 7
+    # One frame says "onset 200" -- far out of reach, so the page does not
+    # move at all, let alone jump.
+    assert reported.update(200) == 5
+    # A target within reach is still only approached a step at a time.
+    assert reported.update(40) == 7
     assert reported.update(6) == 6  # and snaps back when the belief returns
 
 
@@ -93,15 +96,40 @@ def test_before_the_first_lock_the_report_follows_the_belief_outright():
     assert reported.update(800) == 800
 
     # The first confident frame hands control to the rate limiter, and from
-    # then on a far-off single frame can only creep.
+    # then on a far-off single frame moves nothing.
     assert reported.update(802, settled=True) == 802
-    assert reported.update(1500) == 804
+    assert reported.update(1500) == 802
+    assert reported.update(840) == 804  # within reach: a step at a time
 
 
 def test_a_consistently_reported_jump_is_eventually_taken():
-    reported = ReportedPosition(index=0, step=2, confirm=4)
+    reported = ReportedPosition(index=0, step=2, confirm=4, acquired=True)
     results = [reported.update(50) for _ in range(4)]
     assert results[-1] == 50  # a real restart / skipped repeat still lands
+
+
+def test_the_model_can_never_throw_the_reader_across_the_score():
+    # Being dragged from the first page to the last is never a correct
+    # reading, however consistently a repeated passage matches.
+    from app.routers.audio_ws import MAX_MODEL_JUMP_AHEAD
+
+    reported = ReportedPosition(index=10, step=2, confirm=4, acquired=True)
+    for _ in range(50):
+        reported.update(10 + MAX_MODEL_JUMP_AHEAD + 1)
+    assert reported.index == 10
+
+    # The reader may still go there themselves.
+    reported.set(900)
+    assert reported.index == 900
+
+
+def test_the_model_cannot_drag_the_reader_backwards_far():
+    from app.routers.audio_ws import MAX_MODEL_JUMP_BACK
+
+    reported = ReportedPosition(index=400, step=2, back=3, confirm=4, acquired=True)
+    for _ in range(50):
+        reported.update(400 - MAX_MODEL_JUMP_BACK - 1)
+    assert reported.index == 400
 
 
 def test_set_moves_immediately():
@@ -119,10 +147,10 @@ def test_the_model_cannot_move_the_page_for_a_while_after_a_manual_move():
     reported.set(90)
 
     for _ in range(MANUAL_HOLD_FRAMES):
-        assert reported.update(500, settled=True) == 90
+        assert reported.update(100, settled=True) == 90
 
     # ...and once it lapses the model is back in charge, still rate-limited.
-    assert reported.update(500, settled=True) != 90
+    assert reported.update(100, settled=True) != 90
 
 
 def test_a_manual_move_is_respected_even_before_the_tracker_settles():
@@ -134,8 +162,9 @@ def test_a_manual_move_is_respected_even_before_the_tracker_settles():
 
 
 def test_backward_creep_is_capped():
+    # A small backward correction is allowed, but only a few onsets a frame.
     reported = ReportedPosition(index=20, back=3, confirm=8, acquired=True)
-    assert reported.update(0) == 17
+    assert reported.update(11) == 17
 
 
 # --- end to end on synthesized audio -----------------------------------
