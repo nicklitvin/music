@@ -23,7 +23,7 @@ jobs:
       - name: Check required secrets are set
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER || vars.DEPLOY_USER }}
         run: |
           missing=""
           [ -n "$SSH_PRIVATE_KEY" ] || missing="$missing SSH_PRIVATE_KEY"
@@ -60,8 +60,10 @@ jobs:
       - name: Deploy
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST || '3.149.2.249' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/home/ubuntu/music' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER || vars.DEPLOY_USER }}
+          # Left empty unless set, so remote-deploy.sh can fall back to the
+          # login user's own home rather than this guessing at a username.
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           DEPLOY_BRANCH: ${{ github.ref_name }}
         run: |
           ssh -i ~/.ssh/deploy.pem -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" \

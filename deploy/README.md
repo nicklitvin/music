@@ -28,7 +28,12 @@ secret, they just avoid hardcoding):
 | Variable | Default if unset |
 |---|---|
 | `DEPLOY_HOST` | `3.149.2.249` |
-| `DEPLOY_PATH` | `/home/ubuntu/music` |
+| `DEPLOY_PATH` | `~/music` for whoever `DEPLOY_USER` is — only set this if the checkout lives somewhere else |
+
+`DEPLOY_USER` also works as a variable rather than a secret, and reads
+better in logs if you do: as a secret it gets masked, so a path like
+`/home/ec2-user/music` prints as `/home/***/music`, which is confusing
+exactly when you're debugging a path.
 
 ### Pin the host key
 

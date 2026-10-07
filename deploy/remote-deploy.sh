@@ -6,7 +6,10 @@
 # is a no-op rather than a mess.
 set -euo pipefail
 
-DEPLOY_PATH="${DEPLOY_PATH:-/home/ubuntu/music}"
+# Defaults to the login user's own home, so this works whether the box is
+# Ubuntu (`ubuntu`), Amazon Linux (`ec2-user`) or anything else, without
+# anyone having to configure a path.
+DEPLOY_PATH="${DEPLOY_PATH:-$HOME/music}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-music-backend}"
 
