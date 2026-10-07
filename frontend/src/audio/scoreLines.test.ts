@@ -77,3 +77,39 @@ describe('buildLines merge limits', () => {
     }
   })
 })
+
+describe('rows that already span both clefs', () => {
+  // The aliez case: OMR numbers measures per system, so treble and bass
+  // interleave in reading order and a row already *is* a whole system.
+  // Merging two of those gives a band from one system's bass to the next
+  // system's treble -- a highlight straddling two lines.
+  function systemRow(y: number, measure: number): NoteBoundingBox[] {
+    const out: NoteBoundingBox[] = []
+    for (let i = 0; i < 6; i++) {
+      // Treble and bass of the same system, interleaved left to right.
+      out.push(note(100 + i * 60, y, measure))
+      out.push({ ...note(100 + i * 60, y + 180, measure), pitch: 'C2' })
+    }
+    return out.map((n, i) => (i % 2 === 0 ? { ...n, pitch: 'G5' } : n))
+  }
+
+  it('does not weld one system to the next', () => {
+    // Two systems, close enough together that a gap rule alone would merge.
+    const notes = [...systemRow(200, 1), ...systemRow(460, 3)]
+    const lines = buildLines(buildOnsets(notes))
+
+    expect(lines).toHaveLength(2)
+    expect(lines[0].bottom).toBeLessThan(lines[1].top)
+  })
+
+  it('still rejoins genuine single-clef halves', () => {
+    // Treble row then bass row, each covering one clef only.
+    const treble = [0, 1, 2].map((i) => ({ ...note(100 + i * 60, 200, 1), pitch: 'G5' }))
+    const bass = [0, 1, 2].map((i) => ({ ...note(100 + i * 60, 260, 1), pitch: 'C2' }))
+    const lines = buildLines(buildOnsets([...treble, ...bass]))
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0].top).toBe(200)
+    expect(lines[0].bottom).toBe(280)
+  })
+})
