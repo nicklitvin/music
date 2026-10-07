@@ -81,6 +81,28 @@ else
   say "frontend: unchanged, skipping build"
 fi
 
+# Find the backend's systemd unit rather than assuming its name. Boxes get
+# set up by hand and the unit ends up called whatever made sense that day.
+if ! systemctl list-unit-files "$BACKEND_SERVICE.service" >/dev/null 2>&1 ||
+   ! systemctl cat "$BACKEND_SERVICE" >/dev/null 2>&1; then
+  say "no unit named $BACKEND_SERVICE; looking for the one that runs this app"
+  discovered=$(grep -rlE "uvicorn|$DEPLOY_PATH" /etc/systemd/system/*.service 2>/dev/null |
+    head -1 | xargs -r basename | sed 's/\.service$//' || true)
+  if [ -n "$discovered" ]; then
+    say "found $discovered"
+    BACKEND_SERVICE="$discovered"
+  else
+    say "ERROR: could not find a systemd unit running this app."
+    say "Units that look related:"
+    systemctl list-units --type=service --all --no-legend 2>/dev/null |
+      grep -iE 'music|uvicorn|fastapi|backend' || say "  (none)"
+    say "What is actually serving port 8000:"
+    sudo ss -lptnH 'sport = :8000' 2>/dev/null || say "  (could not inspect; is ss installed?)"
+    say "Set BACKEND_SERVICE in deploy/remote-deploy.sh to the right unit name."
+    exit 1
+  fi
+fi
+
 say "restarting $BACKEND_SERVICE"
 sudo systemctl restart "$BACKEND_SERVICE"
 
