@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import { Modal } from './Modal'
+import { signOut } from '../lib/auth'
 import { getThemePreference, setThemePreference, type ThemePreference } from '../lib/theme'
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -15,6 +18,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate()
   const [theme, setTheme] = useState<ThemePreference>(getThemePreference)
   const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null)
 
@@ -49,6 +53,19 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h3>Access</h3>
+        <button
+          className="btn btn-ghost settings-signout"
+          onClick={() => {
+            signOut()
+            navigate('/signin', { replace: true })
+          }}
+        >
+          <LogOut size={16} /> Sign out
+        </button>
       </section>
 
       <section className="settings-section">

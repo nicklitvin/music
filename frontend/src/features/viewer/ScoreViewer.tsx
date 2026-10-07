@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import JSZip from 'jszip'
-import { ChevronDown, ChevronUp, Download, Mic, Square } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Download, Mic, Square } from 'lucide-react'
 import { getScore } from '../../lib/db'
 import type { ScorePositionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
 import { buildOnsets } from '../../audio/positionTracking'
 import { buildLines, lineForOnset, type ScoreLine } from '../../audio/scoreLines'
+import {
+  DEFAULT_ANCHOR,
+  LineFollower,
+  centreLine,
+  followDecision,
+  visibleLines,
+  type LineBand,
+} from './followPolicy'
 import { BottomNav, type PillAction } from '../../components/BottomNav'
 
 // After the reader stops moving the sheet themselves, the model stays out
@@ -17,18 +25,12 @@ import { BottomNav, type PillAction } from '../../components/BottomNav'
 const MANUAL_HOLD_MS = 4000
 // A scroll counts as finished once this long passes with no scroll events.
 const SCROLL_SETTLE_MS = 400
-// How far the tracked line must be from where the sheet already sits before
-// it is worth moving, as a fraction of the viewport. Generous on purpose:
-// the sheet should move when the reader reaches a new line, not whenever
-// the estimate twitches.
-const FOLLOW_DEADZONE = 0.55
-// Lines past the bottom of the screen the model is allowed to consider. The
-// reader is almost certainly on a line they can see; what the model is
-// really for is noticing the move to the next one.
-const LOOKAHEAD_LINES = 1
-// The line being played sits in the middle of the screen, which leaves the
-// line before and after it in view either side.
-const FOLLOW_ANCHOR = 0.5
+// Lines either side of the screen the model may consider. Forward is the
+// point -- what the model is really for is noticing the move to the next
+// line -- but a little slack behind stops it being boxed in when the reader
+// sits right at the top of a line.
+const LOOKAHEAD_LINES = 2
+const LOOKBEHIND_LINES = 1
 // Tapping "Previous" this many times while already at the top reveals the
 // hidden Download action -- a deliberate, undiscoverable-by-accident
 // gesture, not a normal navigation affordance.
@@ -53,6 +55,7 @@ function slugify(title: string): string {
 
 export function ScoreViewer() {
   const { scoreId } = useParams<{ scoreId: string }>()
+  const navigate = useNavigate()
   const [score, setScore] = useState<ScoreRecord | null>(null)
   const [pageUrls, setPageUrls] = useState<string[]>([])
   const [listening, setListening] = useState(false)
@@ -64,6 +67,7 @@ export function ScoreViewer() {
   const holdUntilRef = useRef(0)
   const scrollSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const programmaticUntilRef = useRef(0)
+  const followerRef = useRef(new LineFollower())
   const prevTapsAtTopRef = useRef(0)
 
   useEffect(() => {
@@ -112,39 +116,46 @@ export function ScoreViewer() {
     container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
   }, [])
 
-  // Where on the continuous sheet a line sits: its page's offset plus how
-  // far down that page the line is, centred in the viewport.
-  const offsetForLine = useCallback(
-    (line: ScoreLine): number | null => {
-      const container = scrollRef.current
-      if (!container || !score) return null
+  // Every line's band as an absolute offset in the scroll column, measured
+  // from the laid-out pages. Recomputed on demand because it depends on the
+  // rendered width, which changes with the window.
+  const lineBands = useCallback((): LineBand[] => {
+    if (!score) return []
+    return lines.map((line) => {
       const pageIndex = pageArrayIndexByPageNumber.get(line.pageIndex)
-      if (pageIndex === undefined) return null
-      const element = pageRefs.current[pageIndex]
-      const page = score.pages[pageIndex]
-      if (!element || !page) return null
-      const middleOfLine = ((line.top + line.bottom) / 2 / page.height) * element.offsetHeight
-      return element.offsetTop + middleOfLine - container.clientHeight * FOLLOW_ANCHOR
-    },
-    [pageArrayIndexByPageNumber, score],
-  )
+      const element = pageIndex === undefined ? null : pageRefs.current[pageIndex]
+      const page = pageIndex === undefined ? null : score.pages[pageIndex]
+      if (!element || !page) return { top: 0, bottom: 0 }
+      const scale = element.offsetHeight / page.height
+      return {
+        top: element.offsetTop + line.top * scale,
+        bottom: element.offsetTop + line.bottom * scale,
+      }
+    })
+  }, [lines, pageArrayIndexByPageNumber, score])
 
   const handlePosition = useCallback(
     (event: ScorePositionEvent) => {
       const line = lineForOnset(lines, event.onsetIndex)
-      if (!line) return
+      if (line === null) return
+      const lineIndex = lines.indexOf(line)
       setCurrentLine((previous) => (previous?.firstOnset === line.firstOnset ? previous : line))
 
       const container = scrollRef.current
       if (!container || Date.now() < holdUntilRef.current) return
-      const target = offsetForLine(line)
-      if (target === null) return
-      // Only move for a real change of place, not for the estimate
-      // wobbling by a note or two.
-      if (Math.abs(target - container.scrollTop) < container.clientHeight * FOLLOW_DEADZONE) return
-      scrollOurselves(container, target)
+
+      // Scroll on a confirmed change of line, not on a distance threshold.
+      // A line is only ~7% of a phone viewport, so any threshold big enough
+      // to damp jitter is also big enough to stop following altogether.
+      const changed = followerRef.current.observe(lineIndex)
+      if (changed === null) return
+      const bands = lineBands()
+      const target = followDecision(container.scrollTop, bands[changed], {
+        viewportHeight: container.clientHeight,
+      })
+      if (target !== null) scrollOurselves(container, target)
     },
-    [lines, offsetForLine, scrollOurselves],
+    [lineBands, lines, scrollOurselves],
   )
 
   const { error: trackingError, start, stop, sendHint, sendViewport } = useAudioTracking({
@@ -157,28 +168,34 @@ export function ScoreViewer() {
   // constraint that keeps the model honest: it may only place the reader on
   // music they can actually see, plus a line of lookahead for the moment
   // they move on.
-  const reportViewport = useCallback(() => {
-    const container = scrollRef.current
-    if (!container || !score || !lines.length) return
-    const top = container.scrollTop
-    const bottom = top + container.clientHeight
+  // Tell the model what the reader can see and, after a manual scroll,
+  // which line they are looking at. The second half matters as much as the
+  // first: a window alone leaves the model's belief wherever it was, having
+  // to re-find itself, which is what made scrolling feel like it had not
+  // taken. `correct` sends the reader's position as a firm hint.
+  const reportViewport = useCallback(
+    ({ correct = false }: { correct?: boolean } = {}) => {
+      const container = scrollRef.current
+      if (!container || !lines.length) return
+      const bands = lineBands()
+      const visible = visibleLines(container.scrollTop, container.clientHeight, bands)
+      if (!visible.length) return
 
-    const visible: number[] = []
-    lines.forEach((line, index) => {
-      const pageIndex = pageArrayIndexByPageNumber.get(line.pageIndex)
-      if (pageIndex === undefined) return
-      const element = pageRefs.current[pageIndex]
-      const page = score.pages[pageIndex]
-      if (!element || !page) return
-      const lineTop = element.offsetTop + (line.top / page.height) * element.offsetHeight
-      const lineBottom = element.offsetTop + (line.bottom / page.height) * element.offsetHeight
-      if (lineBottom >= top && lineTop <= bottom) visible.push(index)
-    })
-    if (!visible.length) return
+      const first = Math.max(0, visible[0] - LOOKBEHIND_LINES)
+      const last = Math.min(lines.length - 1, visible[visible.length - 1] + LOOKAHEAD_LINES)
+      sendViewport({ firstOnset: lines[first].firstOnset, lastOnset: lines[last].endOnset - 1 })
 
-    const last = Math.min(lines.length - 1, visible[visible.length - 1] + LOOKAHEAD_LINES)
-    sendViewport({ firstOnset: lines[visible[0]].firstOnset, lastOnset: lines[last].endOnset - 1 })
-  }, [lines, pageArrayIndexByPageNumber, score, sendViewport])
+      const centre = centreLine(container.scrollTop, container.clientHeight, bands)
+      if (centre !== null) {
+        if (correct) sendHint(lines[centre].firstOnset, { firm: true })
+        // Adopt where the reader put us, so the next genuine line change is
+        // still seen as a change rather than being swallowed.
+        followerRef.current.reset(centre)
+        setCurrentLine(lines[centre])
+      }
+    },
+    [lineBands, lines, sendHint, sendViewport],
+  )
 
   // Scrolling by hand: keep pushing the hold out while it continues, and
   // only once it has been still for a moment tell the model what is now on
@@ -193,7 +210,7 @@ export function ScoreViewer() {
     if (scrollSettleRef.current) clearTimeout(scrollSettleRef.current)
     scrollSettleRef.current = setTimeout(() => {
       holdUntilRef.current = Date.now() + MANUAL_HOLD_MS
-      reportViewport()
+      reportViewport({ correct: true })
     }, SCROLL_SETTLE_MS)
   }, [reportViewport])
 
@@ -223,7 +240,7 @@ export function ScoreViewer() {
   const currentPage = useCallback((): number => {
     const container = scrollRef.current
     if (!container || !score) return 0
-    const middle = container.scrollTop + container.clientHeight * FOLLOW_ANCHOR
+    const middle = container.scrollTop + container.clientHeight * DEFAULT_ANCHOR
     let page = 0
     score.pages.forEach((_, index) => {
       const element = pageRefs.current[index]
@@ -240,17 +257,12 @@ export function ScoreViewer() {
       holdOff()
       programmaticUntilRef.current = Date.now() + 1000
       container.scrollTo({ top: element.offsetTop, behavior: 'smooth' })
-      // Tell the tracker where the reader went, so when the hold lapses it
-      // carries on from here instead of yanking back, and re-aim the window
-      // at the page they are now looking at.
-      const onsetIndex = onsets.findIndex((onset) => {
-        const page = pageArrayIndexByPageNumber.get(onset[0].pageIndex)
-        return page === index
-      })
-      if (onsetIndex >= 0) sendHint(onsetIndex, { firm: true })
-      setTimeout(reportViewport, SCROLL_SETTLE_MS + 400)
+      // Once the scroll lands, correct the model to where the reader now
+      // is -- the same treatment a manual scroll gets, since tapping
+      // Previous/Next is just as much a statement of "I am here".
+      setTimeout(() => reportViewport({ correct: true }), SCROLL_SETTLE_MS + 400)
     },
-    [holdOff, onsets, pageArrayIndexByPageNumber, reportViewport, sendHint],
+    [holdOff, reportViewport],
   )
 
   const handlePrevious = useCallback(() => {
@@ -289,6 +301,16 @@ export function ScoreViewer() {
   if (!score) return <p>Loading score…</p>
 
   const actions: PillAction[] = [
+    // Phones and tablets have a system back gesture, so this would only be
+    // taking up room in the pill where room is tightest; CSS hides it below
+    // the breakpoint rather than this being a device sniff.
+    {
+      key: 'back',
+      label: 'Scores',
+      icon: <ArrowLeft size={20} />,
+      onClick: () => navigate('/scores'),
+      desktopOnly: true,
+    },
     { key: 'prev', label: 'Previous', icon: <ChevronUp size={20} />, onClick: handlePrevious },
     {
       key: 'record',

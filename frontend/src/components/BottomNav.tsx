@@ -12,6 +12,9 @@ export interface PillAction {
   disabled?: boolean
   emphasized?: boolean
   danger?: boolean
+  // Hidden on small screens, where the pill is tight and the platform's own
+  // back gesture already covers it.
+  desktopOnly?: boolean
 }
 
 interface BottomNavProps {
@@ -41,7 +44,7 @@ export function BottomNav({ infoTitle, infoContent, actions = [] }: BottomNavPro
             key={action.key}
             className={`pill-btn${action.emphasized ? ' pill-btn-emphasized' : ''}${
               action.danger ? ' pill-btn-danger' : ''
-            }`}
+            }${action.desktopOnly ? ' pill-btn-desktop-only' : ''}`}
             onClick={action.onClick}
             disabled={action.disabled}
           >

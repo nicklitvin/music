@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { isSignedIn } from '../../lib/auth'
 
 export function Home() {
   const navigate = useNavigate()
@@ -22,7 +23,12 @@ export function Home() {
       </div>
 
       <div className="home-start-row">
-        <button className="btn btn-primary home-start" onClick={() => navigate('/scores')}>
+        {/* Straight through if the token has already been given; the gate
+            shouldn't be a toll booth on every visit. */}
+        <button
+          className="btn btn-primary home-start"
+          onClick={() => navigate(isSignedIn() ? '/scores' : '/signin')}
+        >
           Start
         </button>
       </div>
