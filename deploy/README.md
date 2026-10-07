@@ -48,6 +48,20 @@ ssh-keyscan -H 3.149.2.249
 
 and paste the output into the `SSH_KNOWN_HOSTS` secret.
 
+## One-time server setup
+
+Run this once and the rest of this section takes care of itself — it
+installs the systemd unit, grants exactly the sudo the deploy needs, stops
+whatever hand-started process is on the port, and starts the service:
+
+```bash
+ssh -i your-key.pem USER@3.149.2.249 'bash -s' < deploy/install-service.sh
+```
+
+Everything is derived from where that account actually has things, so there
+is nothing to edit first. It briefly drops the backend while swapping the
+hand-started process for the managed one.
+
 ## What the server is assumed to look like
 
 The deploy script assumes:
