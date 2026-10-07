@@ -12,6 +12,20 @@ BACKEND_SERVICE="${BACKEND_SERVICE:-music-backend}"
 
 say() { echo "[deploy $(date -u +%H:%M:%S)] $*"; }
 
+if [ ! -d "$DEPLOY_PATH/.git" ]; then
+  say "ERROR: no git checkout at $DEPLOY_PATH"
+  say "Set the DEPLOY_PATH repository variable to wherever the repo actually is."
+  say "Candidates on this machine:"
+  # The checkout nginx serves is the one that matters, so look there first.
+  nginx_roots=$(grep -rhoP '^\s*root\s+\K[^;]+' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | tr -d ' ' || true)
+  for root in $nginx_roots; do
+    say "  nginx serves: $root"
+  done
+  find /home /srv /opt /var/www -maxdepth 4 -type d -name .git 2>/dev/null |
+    sed 's#/\.git$##' | while read -r repo; do say "  git checkout: $repo"; done
+  exit 1
+fi
+
 cd "$DEPLOY_PATH"
 
 previous=$(git rev-parse HEAD)
