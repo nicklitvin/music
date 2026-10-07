@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import JSZip from 'jszip'
-import { ArrowLeft, ChevronDown, ChevronUp, Download, Mic, Square } from 'lucide-react'
+import { ArrowLeft, Download, Mic, Square } from 'lucide-react'
 import { getScore } from '../../lib/db'
 import type { ScorePositionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
@@ -15,6 +15,7 @@ import {
   visibleLines,
   type LineBand,
 } from './followPolicy'
+import { isTap, tapAction } from './tapZones'
 import { BottomNav, type PillAction } from '../../components/BottomNav'
 
 // After the reader stops moving the sheet themselves, the model stays out
@@ -31,9 +32,9 @@ const SCROLL_SETTLE_MS = 400
 // sits right at the top of a line.
 const LOOKAHEAD_LINES = 2
 const LOOKBEHIND_LINES = 1
-// Tapping "Previous" this many times while already at the top reveals the
-// hidden Download action -- a deliberate, undiscoverable-by-accident
-// gesture, not a normal navigation affordance.
+// Asking for the previous page this many times while already on the first
+// one reveals the hidden Download action -- a deliberate,
+// undiscoverable-by-accident gesture, not a normal navigation affordance.
 const DOWNLOAD_UNLOCK_TAPS = 7
 
 const INFO_CONTENT = (
@@ -41,9 +42,26 @@ const INFO_CONTENT = (
     <p>
       The whole sheet is one continuous scroll. Press Record and play -- the sheet follows where it hears you.
     </p>
+    <p>
+      <strong>Keyboard</strong>
+    </p>
+    <ul>
+      <li>
+        <kbd>←</kbd> / <kbd>→</kbd> — previous / next line
+      </li>
+      <li>
+        <kbd>↑</kbd> / <kbd>↓</kbd> — previous / next page
+      </li>
+    </ul>
+    <p>
+      <strong>Touch</strong> — tap the sheet:
+    </p>
+    <ul>
+      <li>Left or right edge — previous / next line</li>
+      <li>Middle, upper half — previous page; lower half — next page</li>
+    </ul>
     <ul>
       <li>Scroll by hand any time; the model won't fight you for a few seconds after you do.</li>
-      <li>Previous / Next move by one page.</li>
       <li>Nothing is recorded or uploaded -- audio is analysed as it arrives and discarded.</li>
     </ul>
   </>
@@ -265,6 +283,33 @@ export function ScoreViewer() {
     [holdOff, reportViewport],
   )
 
+  /** Move by whole lines -- the left/right arrows and the side tap zones. */
+  const goToLine = useCallback(
+    (delta: number) => {
+      const container = scrollRef.current
+      if (!container || !lines.length) return
+      const bands = lineBands()
+      const from =
+        followerRef.current.currentLine ?? centreLine(container.scrollTop, container.clientHeight, bands) ?? 0
+      const target = Math.max(0, Math.min(lines.length - 1, from + delta))
+      if (target === from && delta !== 0) return
+
+      holdOff()
+      programmaticUntilRef.current = Date.now() + 1000
+      const offset = followDecision(container.scrollTop, bands[target], {
+        viewportHeight: container.clientHeight,
+      })
+      container.scrollTo({ top: Math.max(0, offset ?? bands[target].top), behavior: 'smooth' })
+      followerRef.current.reset(target)
+      setCurrentLine(lines[target])
+      // Same correction a manual scroll sends: this is the reader saying
+      // where they are, not just what they can see.
+      sendHint(lines[target].firstOnset, { firm: true })
+      setTimeout(() => reportViewport(), SCROLL_SETTLE_MS + 400)
+    },
+    [holdOff, lineBands, lines, reportViewport, sendHint],
+  )
+
   const handlePrevious = useCallback(() => {
     const page = currentPage()
     if (page === 0) {
@@ -283,6 +328,61 @@ export function ScoreViewer() {
     prevTapsAtTopRef.current = 0
     goToPage(page + 1)
   }, [currentPage, goToPage, score])
+
+  // Arrow keys: left/right a line, up/down a page. Bound to the window so
+  // they work without having to click the sheet first, and default-prevented
+  // so the browser doesn't also scroll the container underneath.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const actions: Record<string, () => void> = {
+        ArrowLeft: () => goToLine(-1),
+        ArrowRight: () => goToLine(1),
+        ArrowUp: handlePrevious,
+        ArrowDown: handleNext,
+      }
+      const action = actions[event.key]
+      if (!action) return
+      // Leave typing alone (the upload sheet and sign-in both have inputs).
+      const target = event.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      event.preventDefault()
+      action()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [goToLine, handleNext, handlePrevious])
+
+  // Touch: the same four moves, by where on the sheet you tap. Only on
+  // touch devices -- on a mouse this would make every stray click jump the
+  // music, and the arrow keys already cover it.
+  const tapStartRef = useRef<{ x: number; y: number; at: number } | null>(null)
+
+  const onSheetPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      holdOff()
+      tapStartRef.current =
+        event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY, at: Date.now() } : null
+    },
+    [holdOff],
+  )
+
+  const onSheetPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const start = tapStartRef.current
+      tapStartRef.current = null
+      if (!start) return
+      const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+      if (!isTap(moved, Date.now() - start.at)) return
+
+      const rect = event.currentTarget.getBoundingClientRect()
+      const action = tapAction(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height)
+      if (action === 'previous-line') goToLine(-1)
+      else if (action === 'next-line') goToLine(1)
+      else if (action === 'previous-page') handlePrevious()
+      else if (action === 'next-page') handleNext()
+    },
+    [goToLine, handleNext, handlePrevious],
+  )
 
   const handleDownload = useCallback(async () => {
     if (!score) return
@@ -311,7 +411,6 @@ export function ScoreViewer() {
       onClick: () => navigate('/scores'),
       desktopOnly: true,
     },
-    { key: 'prev', label: 'Previous', icon: <ChevronUp size={20} />, onClick: handlePrevious },
     {
       key: 'record',
       label: listening ? 'Stop' : 'Record',
@@ -320,7 +419,6 @@ export function ScoreViewer() {
       emphasized: !listening,
       danger: listening,
     },
-    { key: 'next', label: 'Next', icon: <ChevronDown size={20} />, onClick: handleNext },
   ]
   if (downloadUnlocked) {
     actions.push({
@@ -336,7 +434,13 @@ export function ScoreViewer() {
     <div className="sheet-page">
       {trackingError && <div className="sheet-tracking-error">{trackingError}</div>}
 
-      <div className="sheet-scroll" ref={scrollRef} onScroll={onScroll} onPointerDown={holdOff}>
+      <div
+        className="sheet-scroll"
+        ref={scrollRef}
+        onScroll={onScroll}
+        onPointerDown={onSheetPointerDown}
+        onPointerUp={onSheetPointerUp}
+      >
         {score.pages.map((page, index) => (
           <div
             className="sheet-page-block"
