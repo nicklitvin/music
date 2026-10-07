@@ -5,7 +5,9 @@
 // storage key below walks straight in. It keeps casual visitors out of a
 // personal app; it does not protect anything. Real protection would mean
 // the backend refusing to serve without a credential it verifies.
-const ACCESS_TOKEN = 'mu1sicscr0ll'
+// Exported so tests don't each hardcode their own copy and drift when it
+// changes. It is not a secret in any meaningful sense -- see above.
+export const ACCESS_TOKEN = '1010'
 const STORAGE_KEY = 'access-granted'
 
 export function isSignedIn(): boolean {

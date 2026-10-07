@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { isSignedIn, signOut } from '../../lib/auth'
+import { ACCESS_TOKEN, isSignedIn, signOut } from '../../lib/auth'
 import { SignIn } from './SignIn'
 
 function renderSignIn(initial = '/signin') {
@@ -18,6 +18,23 @@ function renderSignIn(initial = '/signin') {
 
 describe('SignIn', () => {
   beforeEach(() => signOut())
+
+  // Pinned in exactly one place: everything else imports the constant, so
+  // changing the token is a one-line change that this test confirms.
+  it('is gated on the expected token', () => {
+    expect(ACCESS_TOKEN).toBe('1010')
+  })
+
+  it('rejects tokens that merely resemble the real one', async () => {
+    const user = userEvent.setup()
+    renderSignIn()
+
+    await user.type(screen.getByLabelText(/access token/i), '10101')
+    await user.click(screen.getByRole('button', { name: /continue/i }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(isSignedIn()).toBe(false)
+  })
 
   it('rejects a wrong token and stays put', async () => {
     const user = userEvent.setup()
@@ -35,7 +52,7 @@ describe('SignIn', () => {
     const user = userEvent.setup()
     renderSignIn()
 
-    await user.type(screen.getByLabelText(/access token/i), 'mu1sicscr0ll')
+    await user.type(screen.getByLabelText(/access token/i), ACCESS_TOKEN)
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     expect(await screen.findByText('library')).toBeInTheDocument()
@@ -46,7 +63,7 @@ describe('SignIn', () => {
     const user = userEvent.setup()
     renderSignIn()
 
-    await user.type(screen.getByLabelText(/access token/i), '  mu1sicscr0ll  ')
+    await user.type(screen.getByLabelText(/access token/i), `  ${ACCESS_TOKEN}  `)
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     expect(await screen.findByText('library')).toBeInTheDocument()
@@ -73,7 +90,7 @@ describe('SignIn', () => {
   it('signing out revokes access again', async () => {
     const user = userEvent.setup()
     renderSignIn()
-    await user.type(screen.getByLabelText(/access token/i), 'mu1sicscr0ll')
+    await user.type(screen.getByLabelText(/access token/i), ACCESS_TOKEN)
     await user.click(screen.getByRole('button', { name: /continue/i }))
     expect(isSignedIn()).toBe(true)
 

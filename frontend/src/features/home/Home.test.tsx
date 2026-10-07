@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { signIn, signOut } from '../../lib/auth'
+import { ACCESS_TOKEN, signIn, signOut } from '../../lib/auth'
 import { Home } from './Home'
 
 function renderHome() {
@@ -30,7 +30,7 @@ describe('Home', () => {
   })
 
   it('goes straight to the library once the token has been given', async () => {
-    signIn('mu1sicscr0ll')
+    signIn(ACCESS_TOKEN)
     const user = userEvent.setup()
     renderHome()
 
