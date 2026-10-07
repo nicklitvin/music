@@ -171,6 +171,89 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   border-radius: 999px;
 }
 
+/* Version chip + patch notes ---------------------------------------------- */
+
+.version-chip {
+  position: fixed;
+  right: calc(10px + env(safe-area-inset-right));
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 5;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.version-chip:hover {
+  opacity: 0.9;
+  text-decoration: underline;
+}
+
+.patch-notes {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: calc(20px + env(safe-area-inset-top)) 16px 48px;
+  text-align: left;
+}
+
+.patch-notes-header h1 {
+  font-size: 26px;
+  margin: 14px 0 2px;
+}
+
+.patch-notes-list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+
+.patch-note {
+  padding: 0 0 22px 18px;
+  border-left: 2px solid var(--border);
+  position: relative;
+}
+
+.patch-note::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.patch-note:last-child {
+  border-left-color: transparent;
+  padding-bottom: 0;
+}
+
+.patch-note-date {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+.patch-note h2 {
+  font-size: 17px;
+  margin: 4px 0 8px;
+}
+
+.patch-note ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
 /* Sign in ----------------------------------------------------------------- */
 
 .signin {

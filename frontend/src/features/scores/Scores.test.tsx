@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -78,6 +78,8 @@ describe('Scores', () => {
     await user.click(screen.getByRole('button', { name: /delete moonlight sonata/i }))
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(screen.queryByText('Moonlight Sonata')).not.toBeInTheDocument()
+    // Deleting writes to IndexedDB before updating state, so this has to
+    // wait for that round trip rather than assert on the next tick.
+    await waitFor(() => expect(screen.queryByText('Moonlight Sonata')).not.toBeInTheDocument())
   })
 })

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { isSignedIn } from '../../lib/auth'
+import { VersionChip } from '../../components/VersionChip'
 
 export function Home() {
   const navigate = useNavigate()
@@ -32,6 +33,7 @@ export function Home() {
           Start
         </button>
       </div>
+      <VersionChip />
     </div>
   )
 }

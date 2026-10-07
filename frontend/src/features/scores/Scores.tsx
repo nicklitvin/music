@@ -4,6 +4,7 @@ import { FileUp, GripVertical, Trash2, Upload, X } from 'lucide-react'
 import { BottomNav } from '../../components/BottomNav'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { Modal } from '../../components/Modal'
+import { VersionChip } from '../../components/VersionChip'
 import { deleteScore, listScores, reorderScores } from '../../lib/db'
 import { useDragReorder } from '../../lib/useDragReorder'
 import { SECONDS_PER_PAGE, useUploadQueue, type PendingUpload } from '../../lib/uploadQueue'
@@ -214,6 +215,8 @@ export function Scores() {
         accept="application/pdf"
         onChange={handleFileChange}
       />
+
+      <VersionChip />
 
       <BottomNav
         infoTitle="Your scores"

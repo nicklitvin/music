@@ -7,3 +7,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// Stamped by vite.config.ts at build time; absent under vitest, which is
+// why src/lib/version.ts guards for it.
+declare const __BUILD_DATE__: string | undefined

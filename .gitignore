@@ -9,5 +9,13 @@ Thumbs.db
 .env
 .env.local
 
+# Deploy keys. These belong on your machine and in the SSH_PRIVATE_KEY
+# GitHub secret, never in the repo -- this is only a backstop against a
+# stray `git add -A`.
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
 # Local scratch: test PDFs, downloaded log/notes JSON exports, etc.
 /content/
