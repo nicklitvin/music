@@ -21,6 +21,18 @@ PORT="${PORT:-8000}"
 
 say() { echo "[setup] $*"; }
 
+# Refuse to run alongside PM2. Installing a unit here while PM2 also manages
+# the app gives two supervisors fighting over port 8000: this script would
+# kill whatever holds the port, PM2 would restart it, systemd would start
+# its own, and the loser crash-loops. Pick one; the deploy already handles
+# either.
+if command -v pm2 >/dev/null 2>&1 && pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+  say "PM2 already manages '$SERVICE_NAME' on this box, so systemd is not needed."
+  say "Deploys restart it through PM2. Nothing to do -- exiting without changes."
+  say "If you really want to move it to systemd, 'pm2 delete $SERVICE_NAME' first."
+  exit 0
+fi
+
 [ -d "$DEPLOY_PATH/backend" ] || { say "ERROR: no backend at $DEPLOY_PATH/backend"; exit 1; }
 
 PYTHON="$DEPLOY_PATH/backend/.venv/bin/python"

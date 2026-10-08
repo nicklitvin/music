@@ -81,7 +81,40 @@ else
   say "frontend: unchanged, skipping build"
 fi
 
-# Find the backend's systemd unit rather than assuming its name. Boxes get
+# On this box the backend runs under PM2 (as `music-backend`), which also
+# brings it back at boot via pm2-<user>.service. Restart it there if so; no
+# sudo needed, since PM2 runs as the deploy user.
+if command -v pm2 >/dev/null 2>&1 && pm2 describe "$BACKEND_SERVICE" >/dev/null 2>&1; then
+  say "restarting $BACKEND_SERVICE (pm2)"
+  pm2 restart "$BACKEND_SERVICE" --update-env
+
+  # Give it a moment, then fail the deploy if it did not come back.
+  sleep 3
+  status=$(pm2 jlist | python3 -c '
+import json, sys
+name = sys.argv[1]
+print(next((p["pm2_env"]["status"] for p in json.load(sys.stdin) if p["name"] == name), "missing"))
+' "$BACKEND_SERVICE")
+  if [ "$status" != "online" ]; then
+    say "ERROR: $BACKEND_SERVICE is $status after restart"
+    pm2 logs "$BACKEND_SERVICE" --lines 40 --nostream || true
+    exit 1
+  fi
+  # Remember the process list so a reboot resurrects the current setup.
+  pm2 save --force >/dev/null
+
+  # Only if sudo won't stop and ask for a password -- a deploy that hangs
+  # on a prompt is worse than one that skips a reload nginx doesn't need
+  # for static assets anyway.
+  if systemctl is-active --quiet nginx && sudo -n true 2>/dev/null; then
+    say "reloading nginx"
+    sudo -n systemctl reload nginx
+  fi
+  say "deployed $current"
+  exit 0
+fi
+
+# Otherwise, find the backend's systemd unit rather than assuming its name. Boxes get
 # set up by hand and the unit ends up called whatever made sense that day.
 if ! systemctl list-unit-files "$BACKEND_SERVICE.service" >/dev/null 2>&1 ||
    ! systemctl cat "$BACKEND_SERVICE" >/dev/null 2>&1; then

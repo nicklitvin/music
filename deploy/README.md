@@ -48,19 +48,31 @@ ssh-keyscan -H 3.149.2.249
 
 and paste the output into the `SSH_KNOWN_HOSTS` secret.
 
-## One-time server setup
+## How the backend gets restarted
 
-Run this once and the rest of this section takes care of itself — it
-installs the systemd unit, grants exactly the sudo the deploy needs, stops
-whatever hand-started process is on the port, and starts the service:
+The deploy handles two setups and picks whichever the box actually uses:
+
+**PM2** (what `3.149.2.249` uses). The backend runs as a PM2 app named
+`music-backend`, and PM2 brings it back at boot via its own
+`pm2-<user>.service`. The deploy restarts it with `pm2 restart`, checks it
+came back `online`, and runs `pm2 save` so the boot-time list stays
+current. No sudo involved — PM2 runs as the deploy user.
+
+**systemd**, if PM2 isn't managing it. The deploy looks for a unit named
+`music-backend`, or failing that one whose definition mentions `uvicorn` or
+the deploy path.
+
+If a box has neither — the backend is just a process someone started by
+hand, which does not survive a reboot — `deploy/install-service.sh` sets up
+the systemd option once:
 
 ```bash
 ssh -i your-key.pem USER@3.149.2.249 'bash -s' < deploy/install-service.sh
 ```
 
-Everything is derived from where that account actually has things, so there
-is nothing to edit first. It briefly drops the backend while swapping the
-hand-started process for the managed one.
+It derives everything from the account it runs as, grants passwordless sudo
+for only that service plus an nginx reload, and refuses to run if PM2
+already manages the app — two supervisors on one port means a crash loop.
 
 ## What the server is assumed to look like
 
