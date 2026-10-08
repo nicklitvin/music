@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { processScore } from './api'
 import { nextSortOrderForNewScore, saveScore } from './db'
 import { countPdfPages } from './pdfPages'
+import { uuid } from './uuid'
 
 // Measured on the machine this runs on: oemer takes a median 308s per page
 // (296-374s over 57 pages), CPU-only. Used to turn "processing..." into an
@@ -33,7 +34,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingUpload[]>([])
 
   const startUpload = useCallback((file: File) => {
-    const id = crypto.randomUUID()
+    const id = uuid()
     setPending((prev) => [{ id, fileName: file.name, startedAt: Date.now() }, ...prev])
 
     // Fills the estimate in once the page count is known; the upload is

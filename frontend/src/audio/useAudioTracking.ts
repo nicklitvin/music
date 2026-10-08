@@ -41,6 +41,20 @@ export function useAudioTracking({
   const start = useCallback(async () => {
     setError(null)
     try {
+      // Microphone access is restricted to secure contexts, so over plain
+      // HTTP (anything but localhost) `navigator.mediaDevices` is simply
+      // undefined. Say so, rather than letting it surface as "cannot read
+      // properties of undefined", which tells the reader nothing about the
+      // fact that this is unfixable without HTTPS.
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          window.isSecureContext
+            ? 'This browser does not support microphone access.'
+            : 'Listening needs a secure connection. This page is served over plain HTTP, ' +
+              'which browsers do not allow microphone access on — use HTTPS or localhost.',
+        )
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
 
