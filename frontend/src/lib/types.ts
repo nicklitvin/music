@@ -35,6 +35,30 @@ export interface ScoreRecord {
   sortOrder?: number
 }
 
+// An upload that hasn't finished processing yet. Kept in IndexedDB (with
+// the PDF itself) so it survives a refresh and can be resubmitted if the
+// backend lost the job, e.g. to a restart.
+export interface PendingUploadRecord {
+  id: string
+  fileName: string
+  startedAt: number
+  file: Blob
+  pageCount?: number
+  pagesDone?: number
+  // Set while waiting behind other sheets on the server.
+  queuePosition?: number
+  error?: string
+}
+
+export interface ProcessScoreJob {
+  jobId: string
+  status: 'queued' | 'running' | 'done' | 'failed'
+  pagesDone: number
+  pagesTotal: number | null
+  queuePosition: number
+  error: string | null
+}
+
 export interface ProcessScoreResponse {
   scoreId: string
   musicXml: string

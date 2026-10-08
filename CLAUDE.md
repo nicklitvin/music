@@ -23,14 +23,20 @@
 
 - **Zero-server-image-storage**: the backend must never write uploaded PDFs
   or rendered page images to disk as persistent storage. Everything happens
-  in memory per-request and is discarded when the response is sent. One
-  narrow, intentional exception: OMR (`oemer`) only accepts a file path, so
+  in memory and is discarded once done with. Score processing is the one
+  thing that outlives a request: OMR runs as an in-memory background job
+  (`backend/app/services/jobs.py`) whose result is held in memory until the
+  client collects it (DELETE) or it expires — never on disk. This assumes a
+  single uvicorn worker process; with several, a poll could land on a worker
+  that doesn't have the job. One narrow, intentional exception: OMR (`oemer`) only accepts a file path, so
   `backend/app/services/oemer_engine.py` writes a page's PNG to a
   `TemporaryDirectory` for the duration of that page's processing and
-  deletes it immediately after — nothing persists past the request.
+  deletes it immediately after — nothing persists past that page.
 - **Client-side persistence**: all visual/audio assets (page images,
   MusicXML, bounding boxes, and the original uploaded PDF) live in the
-  browser's IndexedDB via Dexie — never in a server-side database.
+  browser's IndexedDB via Dexie — never in a server-side database. Uploads
+  still being processed live there too (`uploads` table, PDF included), so a
+  refresh resumes them and a backend restart just means resubmitting.
 - **Note detection for position tracking** uses a vendored copy of
   Spotify's basic-pitch ONNX model (`backend/app/assets/basic_pitch/`,
   Apache 2.0 — keep its LICENSE/NOTICE alongside it). Deliberately vendored

@@ -11,6 +11,17 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-08',
+    title: 'Uploads that actually finish',
+    changes: [
+      'Fixed uploads that never finished: long sheets were being cut off partway through processing.',
+      'Refreshing or closing the app no longer loses an upload — it picks up where it left off.',
+      'Progress shows pages actually finished, and whether your sheet is waiting behind another.',
+      'If the server is briefly unreachable the upload keeps retrying instead of failing.',
+      'In-progress uploads can be cancelled, and failed ones retried.',
+    ],
+  },
+  {
     date: '2026-10-06',
     title: 'Keyboard and tap navigation',
     changes: [

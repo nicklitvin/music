@@ -51,10 +51,16 @@ in production.
 
 - FastAPI, in-memory-only PDF processing (zero-server-storage: nothing is
   ever written to disk, one narrow OMR exception noted below)
-- `POST /api/process-score` — accepts a PDF upload, renders pages to PNG in
-  memory (via PyMuPDF), runs real OMR (`oemer`, see `app/services/omr.py` /
-  `oemer_engine.py`) per page, and returns MusicXML + note bounding boxes +
-  base64 page images. Slow on CPU (multiple minutes per page).
+- `POST /api/process-score` — accepts a PDF upload and starts a background
+  job (keyed by `scoreId`, idempotent) that renders pages to PNG in memory
+  (via PyMuPDF) and runs real OMR (`oemer`, see `app/services/omr.py` /
+  `oemer_engine.py`) per page. Returns `202` with the job's status straight
+  away — OMR is minutes per page, far longer than a request can be held open.
+  `GET /api/process-score/{id}` reports progress (`pagesDone`/`pagesTotal`,
+  queue position), `GET …/{id}/result` returns MusicXML + note bounding boxes +
+  base64 page images once done, and `DELETE …/{id}` frees the result. Jobs
+  live in memory only (`app/services/jobs.py`), so a restart loses them; the
+  frontend keeps pending uploads (PDF included) in IndexedDB and resubmits.
 - `WS /ws/track-audio` — receives streamed PCM16 audio chunks; once sent an
   `INIT` frame with the score's notes, transcribes the audio and runs a
   Markov position tracker over it, streaming back which onset (and page) it

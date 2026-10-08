@@ -26,6 +26,15 @@ class ProcessScoreResponse(BaseModel):
     pages: list[ScorePage]
 
 
+class ProcessScoreJob(BaseModel):
+    jobId: str
+    status: str  # queued | running | done | failed
+    pagesDone: int
+    pagesTotal: int | None
+    queuePosition: int
+    error: str | None = None
+
+
 class NoteDetectionEvent(BaseModel):
     type: str = "NOTE_DETECTION"
     notes: list[str]

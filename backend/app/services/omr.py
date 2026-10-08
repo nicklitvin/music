@@ -12,7 +12,8 @@ thread pool).
 import base64
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 
 import fitz  # PyMuPDF
@@ -122,8 +123,19 @@ def _worker_count(page_count: int) -> int:
     return max(1, limit)
 
 
-def process_pdf(pdf_bytes: bytes) -> OMRResult:
+def process_pdf(
+    pdf_bytes: bytes,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> OMRResult:
+    """Run OMR over every page. `on_progress(pages_done, pages_total)` is
+    called once the page count is known and again as each page finishes."""
     rendered = render_pages(pdf_bytes)
+
+    def report(done: int) -> None:
+        if on_progress is not None:
+            on_progress(done, len(rendered))
+
+    report(0)
 
     pages = [
         ScorePage(
@@ -141,6 +153,7 @@ def process_pdf(pdf_bytes: bytes) -> OMRResult:
         for item in rendered:
             index, raw_boxes, page_xml = _extract_one(item)
             results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
+            report(len(results))
     else:
         # A process pool, not threads: oemer's work is CPU-bound Python
         # (its rule-based passes dominate -- the neural nets are a minority
@@ -148,8 +161,11 @@ def process_pdf(pdf_bytes: bytes) -> OMRResult:
         # processes also hand oemer's memory back to the OS between pages
         # and sidestep its process-global `layers` registry entirely.
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            for index, raw_boxes, page_xml in pool.map(_extract_one, rendered):
+            futures = [pool.submit(_extract_one, item) for item in rendered]
+            for future in as_completed(futures):
+                index, raw_boxes, page_xml = future.result()
                 results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
+                report(len(results))
 
     bounding_boxes: list[NoteBoundingBox] = []
     per_page_xml: list[str] = []

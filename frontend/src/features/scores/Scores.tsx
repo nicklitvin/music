@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileUp, GripVertical, Trash2, Upload, X } from 'lucide-react'
+import { FileUp, GripVertical, RotateCw, Trash2, Upload, X } from 'lucide-react'
 import { BottomNav } from '../../components/BottomNav'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import { Modal } from '../../components/Modal'
@@ -33,27 +33,21 @@ function formatDuration(seconds: number): string {
 
 // Note recognition is minutes per page, so "Processing..." on its own leaves
 // someone staring at a spinner for an hour with no idea whether it's stuck.
-function processingLabel(upload: PendingUpload, now: number): string {
-  const elapsed = (now - upload.startedAt) / 1000
+// Progress comes from the server (pages actually finished), so it holds up
+// across a refresh; the time left is an estimate from the measured per-page
+// cost, an upper bound since pages run several at a time where memory allows.
+function processingLabel(upload: PendingUpload): string {
+  if (upload.stalled) return "Can't reach the server — retrying"
+  if (upload.queuePosition) {
+    const n = upload.queuePosition
+    return `Waiting for ${n} other sheet${n === 1 ? '' : 's'} to finish`
+  }
   if (!upload.pageCount) return 'Processing — about 5 min per page'
 
-  const total = upload.pageCount * SECONDS_PER_PAGE
-  const page = Math.min(upload.pageCount, Math.floor(elapsed / SECONDS_PER_PAGE) + 1)
-  const remaining = total - elapsed
-  const progress = `Page ~${page} of ${upload.pageCount}`
-  // Past the estimate but still going: don't keep promising a time.
-  return remaining <= 30 ? `${progress} — finishing up` : `${progress} — ${formatDuration(remaining)} left`
-}
-
-// Ticks while an upload is in flight so the estimate counts down on its own.
-function useTicker(active: boolean, intervalMs = 10000): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!active) return
-    const timer = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(timer)
-  }, [active, intervalMs])
-  return now
+  const done = upload.pagesDone ?? 0
+  const remaining = (upload.pageCount - done) * SECONDS_PER_PAGE
+  const progress = `${done} of ${upload.pageCount} page${upload.pageCount === 1 ? '' : 's'} done`
+  return remaining <= 0 ? `${progress} — finishing up` : `${progress} — up to ${formatDuration(remaining)} left`
 }
 
 function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
@@ -82,14 +76,13 @@ function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
 
 export function Scores() {
   const navigate = useNavigate()
-  const { pending, startUpload, dismissError } = useUploadQueue()
+  const { pending, startUpload, retryUpload, cancelUpload } = useUploadQueue()
   const [scores, setScores] = useState<ScoreRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<ScoreRecord | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const thumbnails = useThumbnails(scores)
-  const now = useTicker(pending.some((upload) => !upload.error))
 
   useEffect(() => {
     listScores()
@@ -139,14 +132,21 @@ export function Scores() {
             <div className="score-info">
               <strong>{upload.fileName}</strong>
               <span className={upload.error ? 'score-item-error' : ''}>
-                {upload.error ?? processingLabel(upload, now)}
+                {upload.error ?? processingLabel(upload)}
               </span>
             </div>
             {upload.error && (
-              <button className="score-delete" aria-label="Dismiss" onClick={() => dismissError(upload.id)}>
-                <X size={20} />
+              <button className="score-delete" aria-label="Retry" onClick={() => retryUpload(upload.id)}>
+                <RotateCw size={20} />
               </button>
             )}
+            <button
+              className="score-delete"
+              aria-label={upload.error ? 'Dismiss' : `Cancel ${upload.fileName}`}
+              onClick={() => cancelUpload(upload.id)}
+            >
+              <X size={20} />
+            </button>
           </li>
         ))}
 
@@ -200,7 +200,8 @@ export function Scores() {
           </p>
           <p className="subtle-text">
             Recognition takes about 5 minutes per page, so a 10-page sheet is roughly an hour. You'll see an
-            estimate in your library while it works, and you can carry on using the app.
+            estimate in your library while it works, and you can carry on using the app — or close it and come
+            back later.
           </p>
           <button className="btn btn-primary upload-sheet-btn" onClick={() => fileInputRef.current?.click()}>
             <FileUp size={18} /> Choose a PDF
