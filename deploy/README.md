@@ -124,6 +124,21 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now music-backend
 ```
 
+## HTTPS certificate renewal
+
+The site's Let's Encrypt certificate (scrollsheetmusic.com + www) renews
+itself: certbot's `certbot-renew.timer` runs twice a day and renews once the
+certificate is within 30 days of expiry, and a deploy hook
+(`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`) reloads nginx so
+the new certificate is actually served. Set up, or re-checked, with:
+
+```bash
+ssh -i your-key.pem ec2-user@3.149.2.249 'bash -s' < deploy/setup-cert-renewal.sh
+```
+
+It's re-runnable and ends with a dry-run renewal against Let's Encrypt's
+staging server, so it doubles as a "will renewal actually work" check.
+
 ## Trying it without pushing
 
 The workflow has `workflow_dispatch`, so you can run it from the Actions tab
