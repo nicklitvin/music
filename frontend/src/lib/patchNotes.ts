@@ -19,6 +19,7 @@ export const PATCH_NOTES: PatchNote[] = [
       'Progress shows pages actually finished, and whether your sheet is waiting behind another.',
       'If the server is briefly unreachable the upload keeps retrying instead of failing.',
       'In-progress uploads can be cancelled, and failed ones retried.',
+      'Fixed uploads on iPhone being rejected as invalid.',
     ],
   },
   {

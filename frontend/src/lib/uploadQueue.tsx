@@ -25,7 +25,7 @@ export const POLL_INTERVAL_MS = 5000
 // dropped) back off up to this, rather than hammering it or giving up.
 const MAX_RETRY_MS = 60000
 
-export interface PendingUpload extends Omit<PendingUploadRecord, 'file'> {
+export interface PendingUpload extends Omit<PendingUploadRecord, 'file' | 'pdf'> {
   // The server couldn't be reached on the last attempt; still retrying.
   stalled?: boolean
 }
@@ -44,8 +44,13 @@ interface UploadQueueValue {
 
 const UploadQueueContext = createContext<UploadQueueValue | null>(null)
 
-function toView({ file: _file, ...rest }: PendingUploadRecord): PendingUpload {
+function toView({ file: _file, pdf: _pdf, ...rest }: PendingUploadRecord): PendingUpload {
   return rest
+}
+
+function storedPdf(record: PendingUploadRecord): Blob | undefined {
+  if (record.pdf) return new Blob([record.pdf], { type: 'application/pdf' })
+  return record.file instanceof Blob ? record.file : undefined
 }
 
 export function UploadQueueProvider({ children }: { children: ReactNode }) {
@@ -53,6 +58,9 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   // Uploads with a drive loop running, so a retry or a re-render can't
   // start a second one for the same upload.
   const driving = useRef(new Set<string>())
+  // The File exactly as picked, for uploads started in this page load --
+  // preferred over the stored copy, which only exists to survive a refresh.
+  const pickedFiles = useRef(new Map<string, File>())
   const alive = useRef(true)
 
   const patch = useCallback((id: string, changes: Partial<PendingUpload>) => {
@@ -86,8 +94,14 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
           // on a retry.
           if (!record || record.error) return
 
+          const pdf = pickedFiles.current.get(id) ?? storedPdf(record)
+          if (!pdf) {
+            await fail('The PDF for this upload was lost — please upload it again')
+            return
+          }
+
           try {
-            const job = (await getScoreJob(id)) ?? (await submitScore(record.file, id))
+            const job = (await getScoreJob(id)) ?? (await submitScore(pdf, id))
 
             if (job.status === 'failed') {
               await fail(job.error ?? 'Processing failed')
@@ -95,7 +109,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             }
 
             if (job.status === 'done') {
-              const score = await fetchScoreResult(id, record.fileName, record.file)
+              const score = await fetchScoreResult(id, record.fileName, pdf)
               // null: the result went missing between the two calls (a
               // restart); go round again and resubmit.
               if (score) {
@@ -127,6 +141,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         }
       } finally {
         driving.current.delete(id)
+        if (!alive.current || !(await db.uploads.get(id))) pickedFiles.current.delete(id)
       }
     },
     [patch, remove],
@@ -152,10 +167,13 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
   const startUpload = useCallback(
     (file: File) => {
-      const record: PendingUploadRecord = { id: uuid(), fileName: file.name, startedAt: Date.now(), file }
-      setPending((prev) => [toView(record), ...prev])
+      const id = uuid()
+      const startedAt = Date.now()
+      pickedFiles.current.set(id, file)
+      setPending((prev) => [{ id, fileName: file.name, startedAt }, ...prev])
 
       void (async () => {
+        const record: PendingUploadRecord = { id, fileName: file.name, startedAt, pdf: await file.arrayBuffer() }
         await savePendingUpload(record)
         void drive(record.id)
 
@@ -182,6 +200,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   const cancelUpload = useCallback(
     (id: string) => {
       remove(id)
+      pickedFiles.current.delete(id)
       void deletePendingUpload(id)
       void discardScoreJob(id)
     },

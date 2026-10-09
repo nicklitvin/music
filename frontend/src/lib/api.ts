@@ -25,6 +25,10 @@ async function check(res: Response, what: string): Promise<Response> {
   try {
     const body = await res.json()
     if (typeof body?.detail === 'string') detail = body.detail
+    // FastAPI's request-validation errors: a list of {loc, msg}.
+    else if (Array.isArray(body?.detail)) {
+      detail = body.detail.map((e: { loc?: unknown[]; msg?: string }) => `${e.loc?.at(-1) ?? ''}: ${e.msg}`).join('; ')
+    }
   } catch {
     // Not JSON (a proxy error page, say); the status text will do.
   }

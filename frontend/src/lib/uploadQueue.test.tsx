@@ -22,7 +22,7 @@ function pendingUpload(overrides: Partial<PendingUploadRecord> = {}): PendingUpl
     id: 'upload-1',
     fileName: 'Nocturne.pdf',
     startedAt: Date.now(),
-    file: new Blob(['%PDF'], { type: 'application/pdf' }),
+    pdf: new TextEncoder().encode('%PDF').buffer as ArrayBuffer,
     ...overrides,
   }
 }
@@ -61,14 +61,6 @@ describe('upload queue', () => {
   beforeEach(async () => {
     await db.scores.clear()
     await db.uploads.clear()
-    // fake-indexeddb hands Blobs back as plain objects (a real browser's
-    // IndexedDB keeps them Blobs), which jsdom's FormData then refuses.
-    vi.stubGlobal(
-      'FormData',
-      class {
-        append() {}
-      },
-    )
   })
 
   afterEach(() => {
@@ -132,6 +124,38 @@ describe('upload queue', () => {
 
     renderScores()
     expect(await screen.findByText(/PDF exceeds maximum upload size/)).toBeInTheDocument()
+  })
+
+  it('sends the stored PDF as a file, not a string', async () => {
+    // iOS once sent a Blob read back out of IndexedDB as a string field,
+    // which the server rejected with a 422.
+    await db.uploads.put(pendingUpload())
+    let sent: FormDataEntryValue | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          sent = (init.body as FormData).get('file')
+          return json(job('running'), 202)
+        }
+        return json({ detail: 'No such job' }, 404)
+      }),
+    )
+
+    renderScores()
+
+    await waitFor(() => expect(sent).toBeInstanceOf(Blob))
+  })
+
+  it('asks for a re-upload when a stored PDF is unreadable, rather than sending junk', async () => {
+    // Saved before PDFs were kept as bytes, and the Blob didn't survive.
+    await db.uploads.put(pendingUpload({ pdf: undefined, file: {} as Blob }))
+    const calls = mockServer({})
+
+    renderScores()
+
+    expect(await screen.findByText(/upload it again/i)).toBeInTheDocument()
+    expect(calls).not.toContain('POST /api/process-score')
   })
 
   it('keeps retrying, rather than failing, while the server is unreachable', async () => {

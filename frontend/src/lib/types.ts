@@ -42,7 +42,13 @@ export interface PendingUploadRecord {
   id: string
   fileName: string
   startedAt: number
-  file: Blob
+  // The PDF's raw bytes, not a Blob: WebKit (every browser on iOS) doesn't
+  // reliably hand a Blob back out of IndexedDB intact, and a broken one got
+  // sent as a string, which the server rejected with a 422. ArrayBuffers
+  // round-trip everywhere.
+  pdf?: ArrayBuffer
+  // How records saved before `pdf` existed hold it; read-only fallback.
+  file?: Blob
   pageCount?: number
   pagesDone?: number
   // Set while waiting behind other sheets on the server.
