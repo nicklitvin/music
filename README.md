@@ -56,8 +56,12 @@ in production.
   (via PyMuPDF) and runs real OMR (`oemer`, see `app/services/omr.py` /
   `oemer_engine.py`) per page. Returns `202` with the job's status straight
   away — OMR is minutes per page, far longer than a request can be held open.
+  OMR runs in its own worker process (spawned per job), so an out-of-memory
+  kill fails the job with that reason rather than taking the backend down.
   `GET /api/process-score/{id}` reports progress (`pagesDone`/`pagesTotal`,
-  queue position), `GET …/{id}/result` returns MusicXML + note bounding boxes +
+  queue position, the worker's current `stage` from oemer's own log lines,
+  its `cpuSeconds`, and a `warning` when the worker is alive but starved of
+  CPU -- in practice, the machine swapping for lack of memory), `GET …/{id}/result` returns MusicXML + note bounding boxes +
   base64 page images once done, and `DELETE …/{id}` frees the result. Jobs
   live in memory only (`app/services/jobs.py`), so a restart loses them; the
   frontend keeps pending uploads (PDF included) in IndexedDB and resubmits.

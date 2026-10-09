@@ -11,6 +11,17 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-09',
+    title: 'Uploading, then processing',
+    changes: [
+      'Uploading a sheet and recognising it are now two separate steps: a progress bar while the PDF is sent, then processing.',
+      'While processing, you can see what the server is actually doing (e.g. "Extracting noteheads").',
+      'If the server runs short of memory and processing grinds to a halt, the upload says so instead of counting down forever.',
+      'If recognition crashes, the upload fails with the reason rather than spinning indefinitely, and can be retried.',
+      'Cancelling an upload now actually stops the work on the server.',
+    ],
+  },
+  {
     date: '2026-10-08',
     title: 'Uploads that actually finish',
     changes: [

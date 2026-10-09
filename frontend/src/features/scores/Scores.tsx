@@ -31,23 +31,29 @@ function formatDuration(seconds: number): string {
   return rest ? `about ${hours}h ${rest}min` : `about ${hours}h`
 }
 
-// Note recognition is minutes per page, so "Processing..." on its own leaves
-// someone staring at a spinner for an hour with no idea whether it's stuck.
-// Progress comes from the server (pages actually finished), so it holds up
-// across a refresh; the time left is an estimate from the measured per-page
-// cost, an upper bound since pages run several at a time where memory allows.
-function processingLabel(upload: PendingUpload): string {
-  if (upload.stalled) return "Can't reach the server — retrying"
+// Two distinct phases, labelled so they can't be confused: sending the PDF
+// (seconds, with a real progress bar), then the server recognising it
+// (minutes per page). While processing, the stage comes from the worker
+// itself, so "stuck" and "slow" look different -- and when the server says
+// its worker is starved, that's shown instead of a hopeful countdown.
+function statusLabel(upload: PendingUpload): string {
+  if (upload.offline) return "Can't reach the server — retrying"
+  if (upload.phase === 'uploading') {
+    return `Uploading — ${Math.round((upload.uploadProgress ?? 0) * 100)}%`
+  }
+  if (upload.phase !== 'processing') return 'Connecting…'
+  if (upload.warning) return upload.warning
   if (upload.queuePosition) {
     const n = upload.queuePosition
-    return `Waiting for ${n} other sheet${n === 1 ? '' : 's'} to finish`
+    return `Uploaded — waiting for ${n} other sheet${n === 1 ? '' : 's'} to finish`
   }
-  if (!upload.pageCount) return 'Processing — about 5 min per page'
+  if (!upload.pageCount) return upload.stage ? `Processing — ${upload.stage}` : 'Processing'
 
   const done = upload.pagesDone ?? 0
+  const pages = `${done} of ${upload.pageCount} page${upload.pageCount === 1 ? '' : 's'} done`
   const remaining = (upload.pageCount - done) * SECONDS_PER_PAGE
-  const progress = `${done} of ${upload.pageCount} page${upload.pageCount === 1 ? '' : 's'} done`
-  return remaining <= 0 ? `${progress} — finishing up` : `${progress} — up to ${formatDuration(remaining)} left`
+  const eta = remaining <= 0 ? 'finishing up' : `up to ${formatDuration(remaining)} left`
+  return upload.stage ? `${pages} · ${upload.stage} · ${eta}` : `${pages} · ${eta}`
 }
 
 function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
@@ -131,9 +137,21 @@ export function Scores() {
             </div>
             <div className="score-info">
               <strong>{upload.fileName}</strong>
-              <span className={upload.error ? 'score-item-error' : ''}>
-                {upload.error ?? processingLabel(upload)}
+              <span className={upload.error || upload.warning ? 'score-item-error' : ''}>
+                {upload.error ?? statusLabel(upload)}
               </span>
+              {!upload.error && upload.phase === 'uploading' && (
+                <div
+                  className="storage-bar upload-bar"
+                  role="progressbar"
+                  aria-label={`Uploading ${upload.fileName}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round((upload.uploadProgress ?? 0) * 100)}
+                >
+                  <div className="storage-bar-fill" style={{ width: `${(upload.uploadProgress ?? 0) * 100}%` }} />
+                </div>
+              )}
             </div>
             {upload.error && (
               <button className="score-delete" aria-label="Retry" onClick={() => retryUpload(upload.id)}>

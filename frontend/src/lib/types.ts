@@ -62,6 +62,12 @@ export interface ProcessScoreJob {
   pagesDone: number
   pagesTotal: number | null
   queuePosition: number
+  // What the server's worker is doing right now, e.g. "Extracting noteheads".
+  stage: string | null
+  // CPU the worker has used -- evidence it's actually working.
+  cpuSeconds: number | null
+  // Set when the worker is alive but barely running (e.g. out of memory).
+  warning: string | null
   error: string | null
 }
 

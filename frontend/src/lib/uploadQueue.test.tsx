@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Scores } from '../features/scores/Scores'
 import { db } from './db'
-import { UploadQueueProvider } from './uploadQueue'
+import { POLL_INTERVAL_MS, UploadQueueProvider } from './uploadQueue'
 import type { PendingUploadRecord } from './types'
 
 function renderScores() {
@@ -57,10 +57,45 @@ function mockServer(routes: Record<string, Array<() => Response>>) {
   return calls
 }
 
+// The upload goes through XMLHttpRequest (for its progress events); this
+// stands in for it by handing the request to whatever fetch is mocked as,
+// after reporting the upload as half and then fully sent.
+class FakeXHR {
+  upload: { onprogress?: (event: { lengthComputable: boolean; loaded: number; total: number }) => void } = {}
+  onload?: () => void
+  onerror?: () => void
+  ontimeout?: () => void
+  status = 0
+  statusText = ''
+  responseText = ''
+  private method = 'GET'
+  private url = ''
+
+  open(method: string, url: string) {
+    this.method = method
+    this.url = url
+  }
+
+  send(body: unknown) {
+    this.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 })
+    this.upload.onprogress?.({ lengthComputable: true, loaded: 100, total: 100 })
+    void fetch(this.url, { method: this.method, body: body as BodyInit }).then(
+      async (res) => {
+        this.status = res.status
+        this.statusText = res.statusText
+        this.responseText = await res.text()
+        this.onload?.()
+      },
+      () => this.onerror?.(),
+    )
+  }
+}
+
 describe('upload queue', () => {
   beforeEach(async () => {
     await db.scores.clear()
     await db.uploads.clear()
+    vi.stubGlobal('XMLHttpRequest', FakeXHR)
   })
 
   afterEach(() => {
@@ -156,6 +191,56 @@ describe('upload queue', () => {
 
     expect(await screen.findByText(/upload it again/i)).toBeInTheDocument()
     expect(calls).not.toContain('POST /api/process-score')
+  })
+
+  it('shows what the server worker is doing, and says so when it is starved', async () => {
+    await db.uploads.put(pendingUpload())
+    mockServer({
+      'GET /api/process-score/upload-1': [
+        () => json(job('running', { stage: 'Extracting noteheads' })),
+        () =>
+          json(
+            job('running', {
+              stage: 'Extracting noteheads',
+              warning: 'The server is out of memory, so processing has almost stopped',
+            }),
+          ),
+      ],
+    })
+
+    renderScores()
+
+    expect(await screen.findByText(/Extracting noteheads/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/out of memory/, {}, { timeout: POLL_INTERVAL_MS + 2000 }),
+    ).toBeInTheDocument()
+  }, 15000)
+
+  it('uploads first, with a progress bar, then moves on to processing', async () => {
+    const user = userEvent.setup()
+    let release: () => void = () => {}
+    const uploaded = new Promise<void>((resolve) => (release = resolve))
+    // Hold the POST open so the uploading phase can be seen.
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        await uploaded
+        return json(job('running', { stage: 'Extracting stafflines' }), 202)
+      }
+      return json(job('running', { stage: 'Extracting stafflines' }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderScores()
+    await user.click(screen.getByRole('button', { name: /upload/i }))
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['%PDF'], 'Etude.pdf', { type: 'application/pdf' }))
+
+    expect(await screen.findByRole('progressbar', { name: /uploading etude\.pdf/i })).toBeInTheDocument()
+    expect(screen.getByText(/Uploading — \d+%/)).toBeInTheDocument()
+
+    release()
+    expect(await screen.findByText(/Extracting stafflines/)).toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('keeps retrying, rather than failing, while the server is unreachable', async () => {

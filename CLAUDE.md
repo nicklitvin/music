@@ -25,7 +25,9 @@
   or rendered page images to disk as persistent storage. Everything happens
   in memory and is discarded once done with. Score processing is the one
   thing that outlives a request: OMR runs as an in-memory background job
-  (`backend/app/services/jobs.py`) whose result is held in memory until the
+  (`backend/app/services/jobs.py`, OMR itself in a spawned worker process
+  per job — keep it out of the web server's process) whose result is held
+  in memory until the
   client collects it (DELETE) or it expires — never on disk. This assumes a
   single uvicorn worker process; with several, a poll could land on a worker
   that doesn't have the job. One narrow, intentional exception: OMR (`oemer`) only accepts a file path, so

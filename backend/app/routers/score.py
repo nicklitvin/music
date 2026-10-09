@@ -7,6 +7,19 @@ router = APIRouter()
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
+# What a job's worker process runs. Module-level (it is pickled by reference
+# to reach the worker), and swappable so tests can stand in for oemer, which
+# is far too slow to run on every commit.
+PROCESSOR: jobs.Processor = omr.process_pdf
+
+
+def _warning(job: jobs.Job) -> str | None:
+    if not job.stalled:
+        return None
+    if job.low_memory:
+        return "The server is out of memory, so processing has almost stopped"
+    return "Processing has stalled -- the worker is barely getting any CPU"
+
 
 def _job_view(job: jobs.Job) -> ProcessScoreJob:
     return ProcessScoreJob(
@@ -15,6 +28,9 @@ def _job_view(job: jobs.Job) -> ProcessScoreJob:
         pagesDone=job.pages_done,
         pagesTotal=job.pages_total,
         queuePosition=jobs.store.queue_position(job.id) if job.status == "queued" else 0,
+        stage=job.stage,
+        cpuSeconds=round(job.cpu_seconds, 1) if job.cpu_seconds is not None else None,
+        warning=_warning(job),
         error=job.error,
     )
 
@@ -42,21 +58,12 @@ async def process_score(file: UploadFile = File(...), scoreId: str = Form(...)) 
     if len(pdf_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="PDF exceeds maximum upload size")
 
-    def run(data: bytes, on_progress) -> ProcessScoreResponse:
-        # Zero-server-storage: the PDF and rendered page images stay in
-        # memory and are dropped once the job's result is collected. (OMR
-        # does write each page's PNG to a short-lived, auto-deleted temp
-        # file during its own processing -- see oemer_engine.py's docstring
-        # for why.)
-        result = omr.process_pdf(data, on_progress)
-        return ProcessScoreResponse(
-            scoreId=scoreId,
-            musicXml=result.music_xml,
-            boundingBoxes=result.bounding_boxes,
-            pages=result.pages,
-        )
-
-    job = jobs.store.submit(scoreId, pdf_bytes, run)
+    # Zero-server-storage: the PDF and rendered page images stay in memory
+    # (here, then in the worker) and are dropped once the job's result is
+    # collected. (OMR does write each page's PNG to a short-lived,
+    # auto-deleted temp file during its own processing -- see
+    # oemer_engine.py's docstring for why.)
+    job = jobs.store.submit(scoreId, pdf_bytes, PROCESSOR)
     del pdf_bytes
     return _job_view(job)
 
@@ -71,7 +78,13 @@ async def get_job_result(job_id: str) -> ProcessScoreResponse:
     job = _get_job(job_id)
     if job.status != "done" or job.result is None:
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
-    return job.result
+    result: omr.OMRResult = job.result
+    return ProcessScoreResponse(
+        scoreId=job.id,
+        musicXml=result.music_xml,
+        boundingBoxes=result.bounding_boxes,
+        pages=result.pages,
+    )
 
 
 # The client calls this once it has saved the result (or gives up on the

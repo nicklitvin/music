@@ -428,6 +428,11 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   opacity: 0.75;
 }
 
+.upload-bar {
+  height: 6px;
+  margin-top: 6px;
+}
+
 .score-item-error {
   color: #c0392b !important;
   opacity: 1 !important;

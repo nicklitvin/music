@@ -38,18 +38,39 @@ async function check(res: Response, what: string): Promise<Response> {
   throw res.status >= 500 ? new Error(message) : new UploadRejectedError(message)
 }
 
-// Starts OMR as a background job on the server and returns immediately.
-// Idempotent on scoreId, so resubmitting an upload the server already has
-// just returns the existing job.
-export async function submitScore(file: Blob, scoreId: string): Promise<ProcessScoreJob> {
+// fetch can't report upload progress, so the upload itself goes through
+// XMLHttpRequest. Resolves to a Response so it shares check() with the rest.
+function postWithProgress(url: string, body: FormData, onProgress?: (fraction: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total)
+      }
+    }
+    xhr.onload = () => resolve(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText }))
+    // Network failure: the queue treats a plain Error as "retry later".
+    xhr.onerror = () => reject(new Error('Upload failed: the server could not be reached'))
+    xhr.ontimeout = xhr.onerror
+    xhr.send(body)
+  })
+}
+
+// Uploads the PDF and starts OMR as a background job on the server,
+// resolving as soon as the upload has landed. Idempotent on scoreId, so
+// resubmitting an upload the server already has just returns the existing
+// job.
+export async function submitScore(
+  file: Blob,
+  scoreId: string,
+  onUploadProgress?: (fraction: number) => void,
+): Promise<ProcessScoreJob> {
   const formData = new FormData()
   formData.append('file', file, 'score.pdf')
   formData.append('scoreId', scoreId)
 
-  const res = await fetch(`${API_BASE_URL}/api/process-score`, {
-    method: 'POST',
-    body: formData,
-  })
+  const res = await postWithProgress(`${API_BASE_URL}/api/process-score`, formData, onUploadProgress)
   return (await check(res, 'Upload')).json()
 }
 

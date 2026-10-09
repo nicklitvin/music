@@ -26,8 +26,16 @@ export const POLL_INTERVAL_MS = 5000
 const MAX_RETRY_MS = 60000
 
 export interface PendingUpload extends Omit<PendingUploadRecord, 'file' | 'pdf'> {
+  // Sending the PDF to the server, then the server working on it. Unset
+  // until the first contact with the server settles which.
+  phase?: 'uploading' | 'processing'
+  // 0-1 while uploading.
+  uploadProgress?: number
+  // What the server's worker is doing, and whether it's actually running.
+  stage?: string
+  warning?: string
   // The server couldn't be reached on the last attempt; still retrying.
-  stalled?: boolean
+  offline?: boolean
 }
 
 interface UploadQueueValue {
@@ -61,6 +69,8 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   // The File exactly as picked, for uploads started in this page load --
   // preferred over the stored copy, which only exists to survive a refresh.
   const pickedFiles = useRef(new Map<string, File>())
+  // Picked uploads that have been sent at least once in this page load.
+  const submitted = useRef(new Set<string>())
   const alive = useRef(true)
 
   const patch = useCallback((id: string, changes: Partial<PendingUpload>) => {
@@ -84,7 +94,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
       const fail = async (message: string) => {
         await updatePendingUpload(id, { error: message })
-        patch(id, { error: message, stalled: false })
+        patch(id, { error: message, offline: false, warning: undefined })
       }
 
       try {
@@ -101,7 +111,17 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
           }
 
           try {
-            const job = (await getScoreJob(id)) ?? (await submitScore(pdf, id))
+            // An upload picked in this page load goes straight to the
+            // server; anything else first asks whether the server already
+            // has it, so a refresh mid-processing doesn't upload it again.
+            const fresh = pickedFiles.current.has(id) && !submitted.current.has(id)
+            let job = fresh ? null : await getScoreJob(id)
+            if (!job) {
+              patch(id, { phase: 'uploading', uploadProgress: 0, offline: false })
+              job = await submitScore(pdf, id, (uploadProgress) => patch(id, { uploadProgress }))
+              submitted.current.add(id)
+            }
+            patch(id, { phase: 'processing', uploadProgress: undefined })
 
             if (job.status === 'failed') {
               await fail(job.error ?? 'Processing failed')
@@ -125,7 +145,12 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
                 queuePosition: job.queuePosition,
               }
               await updatePendingUpload(id, progress)
-              patch(id, { ...progress, stalled: false })
+              patch(id, {
+                ...progress,
+                stage: job.stage ?? undefined,
+                warning: job.warning ?? undefined,
+                offline: false,
+              })
             }
             delay = POLL_INTERVAL_MS
           } catch (err) {
@@ -133,7 +158,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
               await fail(err.message)
               return
             }
-            patch(id, { stalled: true })
+            patch(id, { offline: true })
             delay = Math.min(delay * 2, MAX_RETRY_MS)
           }
 
@@ -170,7 +195,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
       const id = uuid()
       const startedAt = Date.now()
       pickedFiles.current.set(id, file)
-      setPending((prev) => [{ id, fileName: file.name, startedAt }, ...prev])
+      setPending((prev) => [{ id, fileName: file.name, startedAt, phase: 'uploading', uploadProgress: 0 }, ...prev])
 
       void (async () => {
         const record: PendingUploadRecord = { id, fileName: file.name, startedAt, pdf: await file.arrayBuffer() }
@@ -191,7 +216,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
   const retryUpload = useCallback(
     (id: string) => {
-      patch(id, { error: undefined, stalled: false })
+      patch(id, { error: undefined, offline: false })
       void updatePendingUpload(id, { error: undefined }).then(() => drive(id))
     },
     [drive, patch],
