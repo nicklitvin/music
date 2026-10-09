@@ -29,6 +29,7 @@ secret, they just avoid hardcoding):
 |---|---|
 | `DEPLOY_HOST` | `3.149.2.249` |
 | `DEPLOY_PATH` | `~/music` for whoever `DEPLOY_USER` is — only set this if the checkout lives somewhere else |
+| `SITE_URL` | `https://scrollsheetmusic.com` — what the post-deploy check fetches. Must be the real hostname: nginx 404s requests to the bare IP. |
 
 `DEPLOY_USER` also works as a variable rather than a secret, and reads
 better in logs if you do: as a secret it gets masked, so a path like

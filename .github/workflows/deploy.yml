@@ -72,16 +72,21 @@ jobs:
 
       - name: Check the site answers
         env:
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST || '3.149.2.249' }}
+          # The public URL, not the bare IP: nginx only serves the site for
+          # its own hostname (Certbot made port 80 a catch-all that 404s
+          # anything else), so http://<ip>/ is a 404 even when all is well.
+          SITE_URL: ${{ vars.SITE_URL || 'https://scrollsheetmusic.com' }}
         run: |
           # A deploy that leaves the site down should fail loudly, not go green.
+          # Checks both the frontend and the backend behind nginx's /api proxy.
           for attempt in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://$DEPLOY_HOST/" || true)
-            if [ "$code" = "200" ]; then
-              echo "Site responded 200"
+            page=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_URL/" || true)
+            api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$SITE_URL/api/benchmarks" || true)
+            if [ "$page" = "200" ] && [ "$api" = "200" ]; then
+              echo "Site and API responded 200"
               exit 0
             fi
-            echo "Attempt $attempt: HTTP $code; retrying..."
+            echo "Attempt $attempt: page HTTP $page, API HTTP $api; retrying..."
             sleep 5
           done
           echo "Site did not return 200 after the deploy" >&2
