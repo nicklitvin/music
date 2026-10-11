@@ -428,6 +428,16 @@ button:not(.btn):not(.pill-btn):not(.modal-close):not(.score-drag-handle):not(.s
   opacity: 0.75;
 }
 
+/* A pending upload's middle section: laid out like .score-open, but not
+   clickable, and its text column stretches so the upload bar is full width. */
+.score-open-static {
+  cursor: default;
+}
+
+.score-open-static .score-info {
+  flex: 1 1 auto;
+}
+
 .upload-bar {
   height: 6px;
   margin-top: 6px;

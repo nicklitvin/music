@@ -243,6 +243,48 @@ describe('upload queue', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
+  it('survives IndexedDB failing under it, instead of freezing the upload', async () => {
+    // iOS can fail IndexedDB reads after the tab has been in the background.
+    // That used to end the upload's loop silently, stuck on "Connecting...".
+    await db.uploads.put(pendingUpload())
+    const realGet = db.uploads.get.bind(db.uploads)
+    const getSpy = vi
+      .spyOn(db.uploads, 'get')
+      .mockImplementationOnce(() => Promise.reject(new Error('Connection to Indexed Database server lost')) as never)
+      .mockImplementation(realGet as never)
+    mockServer({
+      'GET /api/process-score/upload-1': [() => json(job('running', { pagesDone: 1 }))],
+    })
+
+    renderScores()
+
+    expect(await screen.findByText(/can't reach the server/i)).toBeInTheDocument()
+    // ...and then it carries on by itself.
+    expect(
+      await screen.findByText(/1 of 2 pages done/, {}, { timeout: 2 * POLL_INTERVAL_MS + 2000 }),
+    ).toBeInTheDocument()
+    getSpy.mockRestore()
+  }, 20000)
+
+  it('checks again straight away when you come back to the tab', async () => {
+    await db.uploads.put(pendingUpload())
+    let finished = false
+    mockServer({
+      'GET /api/process-score/upload-1': [() => json(finished ? job('done', { pagesDone: 2 }) : job('running'))],
+      'GET /api/process-score/upload-1/result': [() => json(RESULT)],
+    })
+
+    renderScores()
+    await screen.findByText(/0 of 2 pages done/)
+
+    // Finished while the tab was in the background.
+    finished = true
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    // Well inside one poll interval.
+    expect(await screen.findByText('Nocturne', {}, { timeout: POLL_INTERVAL_MS / 2 })).toBeInTheDocument()
+  })
+
   it('keeps retrying, rather than failing, while the server is unreachable', async () => {
     await db.uploads.put(pendingUpload())
     mockServer({

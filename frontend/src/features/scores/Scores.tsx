@@ -132,26 +132,30 @@ export function Scores() {
         {pending.map((upload) => (
           <li key={upload.id} className="score-item score-item-pending">
             <div className="score-drag-handle score-drag-handle-placeholder" aria-hidden="true" />
-            <div className="score-thumb score-thumb-loading">
-              {!upload.error && <span className="spinner" aria-hidden="true" />}
-            </div>
-            <div className="score-info">
-              <strong>{upload.fileName}</strong>
-              <span className={upload.error || upload.warning ? 'score-item-error' : ''}>
-                {upload.error ?? statusLabel(upload)}
-              </span>
-              {!upload.error && upload.phase === 'uploading' && (
-                <div
-                  className="storage-bar upload-bar"
-                  role="progressbar"
-                  aria-label={`Uploading ${upload.fileName}`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round((upload.uploadProgress ?? 0) * 100)}
-                >
-                  <div className="storage-bar-fill" style={{ width: `${(upload.uploadProgress ?? 0) * 100}%` }} />
-                </div>
-              )}
+            {/* Same box as a finished row's open button, so the thumbnail,
+                text and the buttons on the right line up with the rows below. */}
+            <div className="score-open score-open-static">
+              <div className="score-thumb score-thumb-loading">
+                {!upload.error && <span className="spinner" aria-hidden="true" />}
+              </div>
+              <div className="score-info">
+                <strong>{upload.fileName}</strong>
+                <span className={upload.error || upload.warning ? 'score-item-error' : ''}>
+                  {upload.error ?? statusLabel(upload)}
+                </span>
+                {!upload.error && upload.phase === 'uploading' && (
+                  <div
+                    className="storage-bar upload-bar"
+                    role="progressbar"
+                    aria-label={`Uploading ${upload.fileName}`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round((upload.uploadProgress ?? 0) * 100)}
+                  >
+                    <div className="storage-bar-fill" style={{ width: `${(upload.uploadProgress ?? 0) * 100}%` }} />
+                  </div>
+                )}
+              </div>
             </div>
             {upload.error && (
               <button className="score-delete" aria-label="Retry" onClick={() => retryUpload(upload.id)}>

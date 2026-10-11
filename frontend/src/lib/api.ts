@@ -38,12 +38,29 @@ async function check(res: Response, what: string): Promise<Response> {
   throw res.status >= 500 ? new Error(message) : new UploadRejectedError(message)
 }
 
+// Every request gets a time limit. A phone that backgrounds the tab can
+// leave a request hanging forever -- never resolving, never failing -- which
+// used to freeze an upload on "Connecting..." for good. Timing out turns that
+// into an ordinary error the upload queue retries.
+const STATUS_TIMEOUT_MS = 20_000
+// The result carries every page image, so it can be tens of MB.
+const RESULT_TIMEOUT_MS = 180_000
+// Generous: a 50 MB PDF on a slow mobile connection.
+const UPLOAD_TIMEOUT_MS = 600_000
+
+function fetchWithTimeout(url: string, timeoutMs: number, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 // fetch can't report upload progress, so the upload itself goes through
 // XMLHttpRequest. Resolves to a Response so it shares check() with the rest.
 function postWithProgress(url: string, body: FormData, onProgress?: (fraction: number) => void): Promise<Response> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', url)
+    xhr.timeout = UPLOAD_TIMEOUT_MS
     if (onProgress) {
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total)
@@ -77,7 +94,10 @@ export async function submitScore(
 // null means the server has no such job -- it restarted, or the result
 // expired -- and the upload needs submitting again.
 export async function getScoreJob(scoreId: string): Promise<ProcessScoreJob | null> {
-  const res = await fetch(`${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}`)
+  const res = await fetchWithTimeout(
+    `${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}`,
+    STATUS_TIMEOUT_MS,
+  )
   if (res.status === 404) return null
   return (await check(res, 'Checking progress')).json()
 }
@@ -87,7 +107,10 @@ export async function fetchScoreResult(
   fileName: string,
   sourcePdf: Blob,
 ): Promise<ScoreRecord | null> {
-  const res = await fetch(`${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}/result`)
+  const res = await fetchWithTimeout(
+    `${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}/result`,
+    RESULT_TIMEOUT_MS,
+  )
   if (res.status === 404) return null
   const payload: ProcessScoreResponse = await (await check(res, 'Fetching the result')).json()
 
@@ -105,7 +128,9 @@ export async function fetchScoreResult(
 // Lets the server drop the result from memory once it's saved here.
 export async function discardScoreJob(scoreId: string): Promise<void> {
   try {
-    await fetch(`${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}`, { method: 'DELETE' })
+    await fetchWithTimeout(`${API_BASE_URL}/api/process-score/${encodeURIComponent(scoreId)}`, STATUS_TIMEOUT_MS, {
+      method: 'DELETE',
+    })
   } catch {
     // It expires on its own anyway.
   }

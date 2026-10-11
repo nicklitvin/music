@@ -11,6 +11,15 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-10',
+    title: 'Uploads that pick up where they left off',
+    changes: [
+      'Fixed an upload getting stuck on "Connecting…" after leaving the app and coming back.',
+      'Coming back to the app checks on your uploads straight away.',
+      'The cancel button on an upload lines up with the delete buttons below it.',
+    ],
+  },
+  {
     date: '2026-10-09',
     title: 'Uploading, then processing',
     changes: [

@@ -72,6 +72,36 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   // Picked uploads that have been sent at least once in this page load.
   const submitted = useRef(new Set<string>())
   const alive = useRef(true)
+  // Drive loops waiting out a poll interval. Coming back to the tab wakes
+  // them straight away, rather than leaving a stale status up until the
+  // next tick (or longer, after backoff).
+  const sleepers = useRef(new Set<() => void>())
+
+  const sleep = useCallback((ms: number) => {
+    return new Promise<void>((resolve) => {
+      const wake = () => {
+        clearTimeout(timer)
+        sleepers.current.delete(wake)
+        resolve()
+      }
+      const timer = setTimeout(wake, ms)
+      sleepers.current.add(wake)
+    })
+  }, [])
+
+  useEffect(() => {
+    const wakeAll = () => {
+      if (document.visibilityState === 'visible') sleepers.current.forEach((wake) => wake())
+    }
+    document.addEventListener('visibilitychange', wakeAll)
+    window.addEventListener('online', wakeAll)
+    window.addEventListener('pageshow', wakeAll)
+    return () => {
+      document.removeEventListener('visibilitychange', wakeAll)
+      window.removeEventListener('online', wakeAll)
+      window.removeEventListener('pageshow', wakeAll)
+    }
+  }, [])
 
   const patch = useCallback((id: string, changes: Partial<PendingUpload>) => {
     setPending((prev) => prev.map((p) => (p.id === id ? { ...p, ...changes } : p)))
@@ -99,18 +129,22 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
       try {
         while (alive.current) {
-          const record = await db.uploads.get(id)
-          // Cancelled (possibly from another tab), or failed and waiting
-          // on a retry.
-          if (!record || record.error) return
-
-          const pdf = pickedFiles.current.get(id) ?? storedPdf(record)
-          if (!pdf) {
-            await fail('The PDF for this upload was lost — please upload it again')
-            return
-          }
-
+          // Everything in here is retried on failure -- including reading
+          // IndexedDB, which iOS can fail after the tab has been in the
+          // background. (That used to escape the loop and end it silently,
+          // leaving the upload frozen on whatever it last said.)
           try {
+            const record = await db.uploads.get(id)
+            // Cancelled (possibly from another tab), or failed and waiting
+            // on a retry.
+            if (!record || record.error) return
+
+            const pdf = pickedFiles.current.get(id) ?? storedPdf(record)
+            if (!pdf) {
+              await fail('The PDF for this upload was lost — please upload it again')
+              return
+            }
+
             // An upload picked in this page load goes straight to the
             // server; anything else first asks whether the server already
             // has it, so a refresh mid-processing doesn't upload it again.
@@ -162,14 +196,15 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
             delay = Math.min(delay * 2, MAX_RETRY_MS)
           }
 
-          await new Promise((resolve) => setTimeout(resolve, delay))
+          await sleep(delay)
         }
       } finally {
         driving.current.delete(id)
-        if (!alive.current || !(await db.uploads.get(id))) pickedFiles.current.delete(id)
+        const stillPending = await db.uploads.get(id).catch(() => undefined)
+        if (!alive.current || !stillPending) pickedFiles.current.delete(id)
       }
     },
-    [patch, remove],
+    [patch, remove, sleep],
   )
 
   // Pick up whatever was in flight when the page was last closed.
