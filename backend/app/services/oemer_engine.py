@@ -30,7 +30,6 @@ uploaded content, scoped to one page's processing.
 """
 
 import argparse
-import functools
 import os
 import tempfile
 import threading
@@ -128,7 +127,18 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         # onnxruntime holds on to the peak. Measured on one page: over 3 GB
         # at 16 (OOM-killed on the 4 GB production box), 2.16 GB at 4 --
         # with identical notes out and no slower, since it's the same work.
-        ete.inference = functools.partial(original_inference, batch_size=settings.omr_batch_size)
+        #
+        # Each net reads the page in overlapping tiles (a new tile every 128
+        # px) and averages the overlaps; the nets are ~85% of a page's time.
+        # The staff net's tiles needn't overlap: unchanged notes and 25%
+        # faster. The symbol net's must -- with less overlap it misread key
+        # signatures, turning a whole line's F/Bb into F#/B.
+        def inference(model_path, *args, **kwargs):
+            if os.path.basename(os.path.normpath(model_path)) == "unet_big":
+                kwargs.setdefault("step_size", settings.omr_staff_step_size)
+            return original_inference(model_path, *args, batch_size=settings.omr_batch_size, **kwargs)
+
+        ete.inference = inference
         build_system_mod.AddNote.perform = patched_add_note_perform
         build_system_mod.AddInit.perform = patched_add_init_perform
         build_system_mod.AddMeasure.perform = patched_add_measure_perform

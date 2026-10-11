@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
@@ -78,7 +79,7 @@ def test_maps_multiple_notes_in_a_chord_independently():
     assert [b.pitch for b in boxes] == ["C4", "E4"]
 
 
-def test_extract_page_runs_oemer_at_the_configured_batch_size(monkeypatch):
+def test_extract_page_runs_oemer_at_the_configured_batch_and_step_size(monkeypatch):
     # oemer's own batch of 16 peaks over 3 GB a page -- more than the
     # production box can give it. Checked without running the model: stand
     # in for oemer's extract and look at the inference it would call.
@@ -89,17 +90,24 @@ def test_extract_page_runs_oemer_at_the_configured_batch_size(monkeypatch):
 
     seen = {}
 
+    def fake_inference(model_path, img_path, step_size=128, batch_size=16, **kwargs):
+        seen[os.path.basename(model_path)] = (step_size, batch_size)
+
     def fake_extract(args):
-        seen["batch_size"] = ete.inference.keywords.get("batch_size")
+        ete.inference("checkpoints/unet_big", "page.png")
+        ete.inference("checkpoints/seg_net", "page.png")
         raise RuntimeError("stop here")
 
     monkeypatch.setattr(oemer_engine, "ensure_checkpoints", lambda: None)
     monkeypatch.setattr(ete, "extract", fake_extract)
+    monkeypatch.setattr(ete, "inference", fake_inference)
     monkeypatch.setattr(oemer_engine.settings, "omr_batch_size", 3)
-    original = ete.inference
+    monkeypatch.setattr(oemer_engine.settings, "omr_staff_step_size", 200)
 
     with pytest.raises(RuntimeError, match="stop here"):
         oemer_engine.extract_page(b"png", 0, 100, 100)
 
-    assert seen["batch_size"] == 3
-    assert ete.inference is original  # put back afterwards
+    # The staff net at the configured step; the symbol net keeps oemer's
+    # overlapping 128, which it needs to read key signatures reliably.
+    assert seen == {"unet_big": (200, 3), "seg_net": (128, 3)}
+    assert ete.inference is fake_inference  # put back afterwards

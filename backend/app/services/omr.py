@@ -157,11 +157,9 @@ def process_pdf(
             results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
             report(len(results))
     else:
-        # A process pool, not threads: oemer's work is CPU-bound Python
-        # (its rule-based passes dominate -- the neural nets are a minority
-        # of the time), so threads would serialise on the GIL. Separate
-        # processes also hand oemer's memory back to the OS between pages
-        # and sidestep its process-global `layers` registry entirely.
+        # A process pool, not threads: oemer's process-global `layers`
+        # registry rules out running two pages in one process, and separate
+        # processes hand oemer's memory back to the OS between pages.
         with ProcessPoolExecutor(max_workers=workers) as pool:
             futures = [pool.submit(_extract_one, item) for item in rendered]
             for future in as_completed(futures):
