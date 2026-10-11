@@ -22,15 +22,20 @@ class Settings(BaseSettings):
     # core-hungry -- raise it only if there is RAM headroom to spare.
     omr_workers: int = 0
 
-    # How many image tiles oemer feeds its neural nets at once. Peak memory
-    # scales with it; output and speed don't (see oemer_engine.extract_page).
-    # oemer's own default is 16, which doesn't fit a 4 GB box.
+    # How many 256 px tiles oemer's staff net is fed at once. Peak memory
+    # scales with it; output and speed don't. oemer's own default of 16
+    # doesn't fit a 4 GB box.
     omr_batch_size: int = 4
 
-    # How far apart oemer's first (staff) net places its 256 px image tiles.
-    # oemer's own 128 overlaps them 4x; 256 doesn't overlap them, for the
-    # same notes 20% faster (see oemer_engine.extract_page).
-    omr_staff_step_size: int = 256
+    # The symbol net's tiles: about this many px square, overlapping by
+    # this much (see oemer_inference). Measured on a page at 2 threads:
+    # 384/64 took 70s at 0.8 GB, against oemer's own tiling's ~240s; 640 px
+    # tiles were no faster and needed 1.8 GB.
+    omr_tile_size: int = 384
+    omr_tile_overlap: int = 64
+
+    # Threads for the neural nets. 0 uses every core the machine reports.
+    omr_threads: int = 0
 
 
 settings = Settings()

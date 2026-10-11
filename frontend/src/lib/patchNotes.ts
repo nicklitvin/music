@@ -12,8 +12,11 @@ export interface PatchNote {
 export const PATCH_NOTES: PatchNote[] = [
   {
     date: '2026-10-11',
-    title: 'Faster recognition',
-    changes: ['Recognising a sheet takes about 20% less time, with the same notes found.'],
+    title: 'Faster, more accurate recognition',
+    changes: [
+      'Recognising a sheet takes about half as long as before.',
+      'Key signatures are read far more reliably: lines in flat keys were sometimes read as sharp keys, getting every F or B in them wrong.',
+    ],
   },
   {
     date: '2026-10-10',

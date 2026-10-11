@@ -27,6 +27,11 @@ file path, not in-memory image bytes, so each call writes the page PNG to a
 short-lived temp file (deleted immediately after, via TemporaryDirectory) --
 a narrow, unavoidable exception to the app's normal zero-disk-writes rule for
 uploaded content, scoped to one page's processing.
+
+Two more of oemer's functions are swapped out for the duration of a page:
+its neural-net inference, for a version that doesn't redo most of the work
+(oemer_inference.py), and its accidental classifier, for one that gives
+the glyph a margin first (`predict_padded`) -- see each for the numbers.
 """
 
 import argparse
@@ -36,8 +41,10 @@ import threading
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from app.config import settings
+import numpy as np
+
 from app.models import NoteBoundingBox
+from app.services import oemer_inference
 from app.services.note_naming import step_alter_octave_to_note_name
 
 _LOCK = threading.Lock()
@@ -71,12 +78,32 @@ def ensure_checkpoints() -> None:
             ete.download_file(title, url, save_path)
 
 
+# How much blank margin to give a sharp/flat/natural before oemer's classifier
+# sees it. oemer crops each one to its tight bounding box, so the glyph
+# touches the crop's edges -- and its classifier then reads clear flats as
+# naturals about half the time (9 right of 14 on one test page). A key
+# signature of "naturals" becomes a sharp key, so a whole line of F major
+# came out with F#s and B naturals. With 2 px of margin: 14 of 14, and two
+# test pages' whole-line key errors fixed.
+SFN_MARGIN = 2
+
+
+def predict_padded(region, model_name: str) -> str:
+    """oemer's symbol classifier, with a margin around accidentals."""
+    from oemer.inference import predict
+
+    if model_name == "sfn":
+        region = np.pad(region, SFN_MARGIN)
+    return predict(region, model_name)
+
+
 def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height: int) -> tuple[list[NoteBoundingBox], str]:
     """Runs oemer end-to-end on one rendered page image. Returns note
     bounding boxes (rescaled from oemer's internal working resolution back
     to the page's actual pixel size) and that page's MusicXML.
     """
     import oemer.build_system as build_system_mod
+    import oemer.symbol_extraction as symbol_extraction_mod
     from oemer import ete, layers
 
     ensure_checkpoints()
@@ -123,22 +150,11 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
 
         ete.clear_data()
         original_inference = ete.inference
-        # oemer runs its U-Nets 16 image tiles at a time by default, and
-        # onnxruntime holds on to the peak. Measured on one page: over 3 GB
-        # at 16 (OOM-killed on the 4 GB production box), 2.16 GB at 4 --
-        # with identical notes out and no slower, since it's the same work.
-        #
-        # Each net reads the page in overlapping tiles (a new tile every 128
-        # px) and averages the overlaps; the nets are ~85% of a page's time.
-        # The staff net's tiles needn't overlap: the same notes (98.8-100%
-        # over four test pages) and 20% faster. The symbol net's must -- with less overlap it misread key
-        # signatures, turning a whole line's F/Bb into F#/B.
-        def inference(model_path, *args, **kwargs):
-            if os.path.basename(os.path.normpath(model_path)) == "unet_big":
-                kwargs.setdefault("step_size", settings.omr_staff_step_size)
-            return original_inference(model_path, *args, batch_size=settings.omr_batch_size, **kwargs)
-
-        ete.inference = inference
+        original_predict = symbol_extraction_mod.predict
+        # The neural nets are ~85% of a page's time, and oemer's own tiling
+        # does most of their work several times over -- see oemer_inference.
+        ete.inference = oemer_inference.inference
+        symbol_extraction_mod.predict = predict_padded
         build_system_mod.AddNote.perform = patched_add_note_perform
         build_system_mod.AddInit.perform = patched_add_init_perform
         build_system_mod.AddMeasure.perform = patched_add_measure_perform
@@ -149,6 +165,7 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
                 music_xml = f.read().decode("utf-8")
         finally:
             ete.inference = original_inference
+            symbol_extraction_mod.predict = original_predict
             build_system_mod.AddNote.perform = original_add_note_perform
             build_system_mod.AddInit.perform = original_add_init_perform
             build_system_mod.AddMeasure.perform = original_add_measure_perform

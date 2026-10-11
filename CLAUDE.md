@@ -54,7 +54,11 @@
   a stub, but slow (multiple minutes per page on CPU, no GPU here) and
   needs a pinned, older numpy/scipy/opencv/onnxruntime set to load oemer's
   pretrained models (see the comment in `backend/requirements.txt`) —
-  don't casually bump those.
+  don't casually bump those. oemer's neural-net inference and its
+  accidental classifier are swapped out for the duration of a page
+  (`oemer_inference.py`, `predict_padded` in `oemer_engine.py`) — see
+  "How long OMR takes" in the README for why, and re-measure with
+  `scripts/omr_cost_probe.py` before changing the tiling.
 - **Test material lives in `content/`, entirely gitignored** (real, often
   copyrighted, sheet music PDFs and recordings) — laid out as
   `content/full/<piece>/{score.pdf,notes.json,performance.*}`. Accuracy

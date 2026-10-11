@@ -1,6 +1,7 @@
-import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+
+import numpy as np
 
 from app.services.oemer_engine import build_bounding_boxes
 
@@ -79,35 +80,47 @@ def test_maps_multiple_notes_in_a_chord_independently():
     assert [b.pitch for b in boxes] == ["C4", "E4"]
 
 
-def test_extract_page_runs_oemer_at_the_configured_batch_and_step_size(monkeypatch):
-    # oemer's own batch of 16 peaks over 3 GB a page -- more than the
-    # production box can give it. Checked without running the model: stand
-    # in for oemer's extract and look at the inference it would call.
+def test_extract_page_swaps_in_the_faster_inference_and_padded_classifier(monkeypatch):
+    # Checked without running the model: stand in for oemer's extract and
+    # look at what it would call, and that oemer is put back afterwards.
+    import oemer.symbol_extraction as symbol_extraction
     import pytest
     from oemer import ete
 
-    from app.services import oemer_engine
+    from app.services import oemer_engine, oemer_inference
 
     seen = {}
 
-    def fake_inference(model_path, img_path, step_size=128, batch_size=16, **kwargs):
-        seen[os.path.basename(model_path)] = (step_size, batch_size)
-
     def fake_extract(args):
-        ete.inference("checkpoints/unet_big", "page.png")
-        ete.inference("checkpoints/seg_net", "page.png")
+        seen["inference"] = ete.inference
+        seen["predict"] = symbol_extraction.predict
         raise RuntimeError("stop here")
 
+    original_inference, original_predict = ete.inference, symbol_extraction.predict
     monkeypatch.setattr(oemer_engine, "ensure_checkpoints", lambda: None)
     monkeypatch.setattr(ete, "extract", fake_extract)
-    monkeypatch.setattr(ete, "inference", fake_inference)
-    monkeypatch.setattr(oemer_engine.settings, "omr_batch_size", 3)
-    monkeypatch.setattr(oemer_engine.settings, "omr_staff_step_size", 200)
 
     with pytest.raises(RuntimeError, match="stop here"):
         oemer_engine.extract_page(b"png", 0, 100, 100)
 
-    # The staff net at the configured step; the symbol net keeps oemer's
-    # overlapping 128, which it needs to read key signatures reliably.
-    assert seen == {"unet_big": (200, 3), "seg_net": (128, 3)}
-    assert ete.inference is fake_inference  # put back afterwards
+    assert seen == {"inference": oemer_inference.inference, "predict": oemer_engine.predict_padded}
+    assert ete.inference is original_inference
+    assert symbol_extraction.predict is original_predict
+
+
+def test_accidentals_get_a_margin_before_they_are_classified(monkeypatch):
+    # oemer's tight crops made its classifier read flats as naturals; other
+    # symbols are left exactly as oemer crops them.
+    import oemer.inference
+
+    from app.services import oemer_engine
+
+    shapes = []
+    monkeypatch.setattr(oemer.inference, "predict", lambda region, name: shapes.append((name, region.shape)) or "flat")
+    region = np.ones((25, 10))
+
+    assert oemer_engine.predict_padded(region, "sfn") == "flat"
+    oemer_engine.predict_padded(region, "clef")
+
+    margin = oemer_engine.SFN_MARGIN
+    assert shapes == [("sfn", (25 + 2 * margin, 10 + 2 * margin)), ("clef", (25, 10))]

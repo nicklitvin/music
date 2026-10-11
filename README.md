@@ -108,7 +108,7 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 ```
 
-Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`, `OMR_STAFF_STEP_SIZE`,
+Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`, `OMR_TILE_SIZE`/`OMR_TILE_OVERLAP`/`OMR_THREADS`,
 `USE_LEARNED_TRANSCRIPTION` (see "Note detection" above).
 
 ### How long OMR takes
@@ -121,23 +121,37 @@ spinner, and why `scripts/extract_all_pages.py` is resumable and runs one
 page per subprocess (oemer is memory-hungry enough to get OOM-killed on a
 long run, and a kill should only cost the page in flight).
 
-Those timings predate one speed-up: oemer's staff net no longer overlaps
-its image tiles (`OMR_STAFF_STEP_SIZE`, default 256), which takes ~20% off
-a page with the same notes out. What was tried, on page 0 of four pieces
-with `backend/scripts/omr_cost_probe.py`:
+Those timings predate two speed-ups that together take a page from
+~270s to ~135s on two threads (about what the server has), measured on
+page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
 
-- **Where the time goes:** ~85% in oemer's two neural nets (staff net
-  ~90s, symbol net ~185s of a 323s page); the rule-based passes after
-  them are ~45s.
+- **Where the time goes:** ~85% in oemer's two neural nets; the
+  rule-based passes after them are 30-70s.
+- **oemer's tiling did the nets' work ~5 times over.** It slides each
+  net's 256/288 px training window over the page every 128 px and
+  averages the overlaps. The nets had that tile size baked in, but only
+  as a constant in their layer norms, which work per pixel -- so
+  `app/services/oemer_models.py` makes copies that take any size (output
+  identical at the original size), and `app/services/oemer_inference.py`
+  runs the symbol net on a grid of ~384 px tiles fitted to the page,
+  blended over a 64 px overlap, and the staff net on its own tiles
+  without overlap. Nets: ~245s -> ~100s; peak memory down too. A pixel
+  costs the same at any tile size, so bigger tiles aren't faster -- just
+  hungrier (640 px: 1.8 GB against 384 px's 0.8 GB).
+- **Key signatures were half luck.** oemer classifies each sharp/flat
+  from a crop so tight the glyph touches its edges, and read clear flats
+  as naturals about half the time -- and a key of "naturals" becomes a
+  sharp key. Two of the four test pages had a whole line in the wrong
+  key (105 notes). A 2 px margin round the crop (`predict_padded` in
+  `oemer_engine.py`) fixed every one, and made the result stable against
+  tiling changes, which used to flip them.
 - **Lower render DPI does nothing.** oemer rescales every page to ~3.7M
-  pixels before anything else, so 150, 200 and 300 dpi all took ~320s.
+  pixels before anything else, so 150, 200 and 300 dpi all took the same.
 - **A smaller working size** (oemer's rescale target) is risky: 2.5M
-  pixels was 30% faster but changed 8-11% of notes, and at 1.8M oemer
-  couldn't find the staves at all.
-- **Less tile overlap in the symbol net** is where most of the time is,
-  but it's what reads key signatures: without it, one test page's whole
-  line in F major came out with F#s and B naturals. Only the staff net's
-  overlap is safe to drop.
+  pixels changed 8-11% of notes, and at 1.8M oemer couldn't find the
+  staves at all.
+- **int8 quantization** of the nets was only ~15% faster on this CPU and
+  wrecked the staff net's output.
 
 ## Accuracy benchmarks
 

@@ -9,13 +9,13 @@ disagree, look at the score to see which is right.
 
 Usage:
     .venv/Scripts/python scripts/omr_cost_probe.py <piece> [--dpi N]
-        [--staff-step N] [--symbol-step N] [--pixels N]
+        [--tile N] [--overlap N] [--threads N] [--pixels N] [--oemer-tiling]
 
-    --staff-step / --symbol-step   tile stride for oemer's staff net
-                                   (256 px tiles) and symbol net (288 px);
-                                   oemer's default is 128 for both
-    --pixels                       oemer's working size; by default it
-                                   rescales every page to ~3.7M pixels
+    --tile / --overlap   the symbol net's tiles (OMR_TILE_SIZE/_OVERLAP)
+    --threads            threads for the nets; 2 is close to the server
+    --pixels             oemer's working size; by default it rescales
+                         every page to ~3.7M pixels
+    --oemer-tiling       oemer's own inference, for comparison
 """
 
 import argparse
@@ -36,18 +36,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("piece")
     parser.add_argument("--dpi", type=int, default=settings.render_dpi)
-    parser.add_argument("--staff-step", type=int, default=settings.omr_staff_step_size)
-    parser.add_argument("--symbol-step", type=int, default=128)
+    parser.add_argument("--tile", type=int, default=settings.omr_tile_size)
+    parser.add_argument("--overlap", type=int, default=settings.omr_tile_overlap)
+    parser.add_argument("--threads", type=int, default=settings.omr_threads)
     parser.add_argument("--pixels", type=float, default=None)
+    parser.add_argument("--oemer-tiling", action="store_true")
     args = parser.parse_args()
 
     settings.render_dpi = args.dpi
-    settings.omr_staff_step_size = args.staff_step
+    settings.omr_tile_size = args.tile
+    settings.omr_tile_overlap = args.overlap
+    settings.omr_threads = args.threads
 
     import oemer.inference
-    from oemer import ete
 
-    from app.services import oemer_engine, omr
+    from app.services import oemer_engine, oemer_inference, omr
+
+    if args.oemer_tiling:
+        oemer_inference.inference = oemer.inference.inference
 
     if args.pixels:
 
@@ -57,15 +63,6 @@ def main() -> None:
             return image.resize((round(w * ratio), round(h * ratio)))
 
         oemer.inference.resize_image = resize_image
-
-    original_inference = ete.inference
-
-    def inference(model_path, *rest, **kwargs):
-        if "seg_net" in str(model_path):
-            kwargs["step_size"] = args.symbol_step
-        return original_inference(model_path, *rest, **kwargs)
-
-    ete.inference = inference
 
     stages: list[tuple[str, float, float]] = []
 
