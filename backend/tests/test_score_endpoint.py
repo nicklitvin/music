@@ -126,6 +126,24 @@ def test_a_worker_killed_mid_job_fails_the_job_instead_of_hanging(client, sample
     client.delete("/api/process-score/killed")
 
 
+def test_a_worker_is_stopped_before_it_runs_the_server_out_of_memory(
+    client, sample_pdf_bytes, processor, monkeypatch
+):
+    # Left to the kernel's OOM killer, the machine swaps for minutes first
+    # and the whole site goes unreachable. Stopping at a free-memory floor
+    # fails one upload instead.
+    from app.services import jobs
+
+    processor(fake_processors.endless_omr)
+    monkeypatch.setattr(jobs, "_free_memory_gb", lambda: jobs.MIN_FREE_MEMORY_GB / 2)
+    _upload(client, sample_pdf_bytes, "hog")
+
+    status = _wait_for_job(client, "hog", timeout=30)
+    assert status["status"] == "failed"
+    assert "out of memory" in status["error"]
+    client.delete("/api/process-score/hog")
+
+
 def test_cancelling_a_running_job_stops_its_worker(client, sample_pdf_bytes, processor):
     # Jobs run one at a time, so if the cancelled worker kept going, the
     # next sheet would wait behind it for two minutes.

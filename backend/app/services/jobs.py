@@ -54,6 +54,17 @@ STALL_CPU_SHARE = 0.1
 # Below this much free memory, a stall is almost certainly memory pressure.
 LOW_MEMORY_GB = 0.2
 
+# The worker is stopped once free memory falls below this. Waiting for the
+# kernel's OOM killer is too late: by then the machine has been swapping for
+# minutes, and nginx and the API stall along with everything else -- the
+# whole site goes unreachable (seen on a 4 GB box, a worker at 3.7 GB
+# resident plus 1.8 GB of swap). Stopping early fails one upload instead.
+MIN_FREE_MEMORY_GB = 0.3
+
+# How much lower the worker's CPU priority is than the web server's, so the
+# site stays responsive while a sheet is being processed.
+WORKER_NICENESS = 10
+
 # A worker killed by signal 9 is, on a box with no one else killing things,
 # the kernel's OOM killer.
 _KILLED = (-9, 137)
@@ -102,6 +113,10 @@ class _StageHandler(logging.Handler):
 def _worker_main(conn, process: Processor, pdf_bytes: bytes) -> None:
     """Entry point of the worker process."""
     send_lock = threading.Lock()
+    try:
+        os.nice(WORKER_NICENESS)
+    except (AttributeError, OSError):
+        pass  # not on Windows
 
     def send(message: tuple) -> None:
         with send_lock:
@@ -236,6 +251,18 @@ class JobStore:
                             outcome = message
                 except (EOFError, OSError):
                     break  # the worker is gone without saying why
+
+                free = _free_memory_gb()
+                if free is not None and free < MIN_FREE_MEMORY_GB:
+                    worker.kill()
+                    self._finish(
+                        job,
+                        error=(
+                            "Stopped: the server ran out of memory processing this sheet, "
+                            "and was about to become unresponsive"
+                        ),
+                    )
+                    return
 
                 now = time.monotonic()
                 if now - last_sample >= 5:

@@ -27,9 +27,15 @@ secret, they just avoid hardcoding):
 
 | Variable | Default if unset |
 |---|---|
-| `DEPLOY_HOST` | `3.149.2.249` |
+| `DEPLOY_HOST` | `3.145.73.36` |
 | `DEPLOY_PATH` | `~/music` for whoever `DEPLOY_USER` is — only set this if the checkout lives somewhere else |
 | `SITE_URL` | `https://scrollsheetmusic.com` — what the post-deploy check fetches. Must be the real hostname: nginx 404s requests to the bare IP. |
+
+The box's public IP is not an Elastic IP, so **it changes whenever the instance
+is stopped and started** (a resize, say) — it went from `3.149.2.249` to
+`3.145.73.36` that way. When it does, update the DNS A records for
+`scrollsheetmusic.com` and `www`, and `DEPLOY_HOST`. Associating an Elastic IP
+with the instance stops it changing at all.
 
 `DEPLOY_USER` also works as a variable rather than a secret, and reads
 better in logs if you do: as a secret it gets masked, so a path like
@@ -44,7 +50,7 @@ machine-in-the-middle on that connection would be trusted silently. To close
 that off, run locally:
 
 ```bash
-ssh-keyscan -H 3.149.2.249
+ssh-keyscan -H 3.145.73.36
 ```
 
 and paste the output into the `SSH_KNOWN_HOSTS` secret.
@@ -53,7 +59,7 @@ and paste the output into the `SSH_KNOWN_HOSTS` secret.
 
 The deploy handles two setups and picks whichever the box actually uses:
 
-**PM2** (what `3.149.2.249` uses). The backend runs as a PM2 app named
+**PM2** (what `3.145.73.36` uses). The backend runs as a PM2 app named
 `music-backend`, and PM2 brings it back at boot via its own
 `pm2-<user>.service`. The deploy restarts it with `pm2 restart`, checks it
 came back `online`, and runs `pm2 save` so the boot-time list stays
@@ -68,7 +74,7 @@ hand, which does not survive a reboot — `deploy/install-service.sh` sets up
 the systemd option once:
 
 ```bash
-ssh -i your-key.pem USER@3.149.2.249 'bash -s' < deploy/install-service.sh
+ssh -i your-key.pem USER@3.145.73.36 'bash -s' < deploy/install-service.sh
 ```
 
 It derives everything from the account it runs as, grants passwordless sudo
@@ -124,6 +130,25 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now music-backend
 ```
 
+### Out-of-memory kills must not stop the service
+
+PM2's systemd unit defaults to `OOMPolicy=stop`: when the kernel OOM-kills
+*any* process in it -- e.g. one OMR worker -- systemd stops the whole unit,
+taking PM2 and the backend down with it. The box has a drop-in that makes it
+kill only that process:
+
+```bash
+sudo mkdir -p /etc/systemd/system/pm2-ec2-user.service.d
+printf '[Service]
+OOMPolicy=continue
+' | sudo tee /etc/systemd/system/pm2-ec2-user.service.d/oom.conf
+sudo systemctl daemon-reload
+```
+
+Redo this if the box is ever rebuilt. (The backend also stops a worker
+itself before free memory runs out -- see `MIN_FREE_MEMORY_GB` in
+`backend/app/services/jobs.py` -- so this is the backstop.)
+
 ## HTTPS certificate renewal
 
 The site's Let's Encrypt certificate (scrollsheetmusic.com + www) renews
@@ -133,7 +158,7 @@ certificate is within 30 days of expiry, and a deploy hook
 the new certificate is actually served. Set up, or re-checked, with:
 
 ```bash
-ssh -i your-key.pem ec2-user@3.149.2.249 'bash -s' < deploy/setup-cert-renewal.sh
+ssh -i your-key.pem ec2-user@3.145.73.36 'bash -s' < deploy/setup-cert-renewal.sh
 ```
 
 It's re-runnable and ends with a dry-run renewal against Let's Encrypt's
