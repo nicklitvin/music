@@ -21,11 +21,12 @@ oemer's, so the rest of its pipeline can't tell the difference.
 
 import math
 import os
+import time
 
 import numpy as np
 
 from app.config import settings
-from app.services import oemer_models
+from app.services import oemer_models, omr_log
 
 STAFF_TILE = 256  # the staff net's training size
 
@@ -147,10 +148,27 @@ def inference(model_path: str, img_path: str, step_size=None, batch_size=None, m
         return session.run(None, {"input": batch})[0]
 
     image = _load_image(img_path)
+    started = time.perf_counter()
+    height, width = image.shape[:2]
     if os.path.basename(os.path.normpath(model_path)) == "unet_big":
         out = predict_staff(run, image, settings.omr_batch_size)
+        rows = len(tile_starts(max(height, STAFF_TILE), STAFF_TILE, STAFF_TILE))
+        cols = len(tile_starts(max(width, STAFF_TILE), STAFF_TILE, STAFF_TILE))
+        tiles, name = f"{rows * cols} tiles of {STAFF_TILE} px", "staff net"
     else:
         out = predict_grid(run, image, settings.omr_tile_size, settings.omr_tile_overlap)
+        tile_h, ys = fit_grid(height, settings.omr_tile_size, settings.omr_tile_overlap)
+        tile_w, xs = fit_grid(width, settings.omr_tile_size, settings.omr_tile_overlap)
+        tiles, name = f"{len(ys) * len(xs)} tiles of {tile_h}x{tile_w} px", "symbol net"
+    omr_log.logger.info(
+        "%s: %s on a %dx%d page, %.0fs on %d thread(s)",
+        name,
+        tiles,
+        width,
+        height,
+        time.perf_counter() - started,
+        settings.omr_threads or os.cpu_count() or 1,
+    )
 
     if manual_th is None:
         return np.argmax(out, axis=-1), out

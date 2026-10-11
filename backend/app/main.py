@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import audio_ws, benchmarks, dev, score
+from app.services import omr_log
+
+omr_log.configure()
 
 app = FastAPI(title="Sheet Music Tracker API")
 

@@ -38,6 +38,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.services import omr_log
+
+log = omr_log.logger
+
 JobState = Literal["queued", "running", "done", "failed"]
 
 # How long a finished job's result is kept for a client that hasn't come
@@ -64,6 +68,9 @@ MIN_FREE_MEMORY_GB = 0.3
 # How much lower the worker's CPU priority is than the web server's, so the
 # site stays responsive while a sheet is being processed.
 WORKER_NICENESS = 10
+
+# How often a running job logs how it's getting on (see omr_log).
+HEARTBEAT_SECONDS = 60
 
 # A worker killed by signal 9 is, on a box with no one else killing things,
 # the kernel's OOM killer.
@@ -110,9 +117,19 @@ class _StageHandler(logging.Handler):
             pass
 
 
+def _short(job_id: str) -> str:
+    return job_id[:8]
+
+
+def _duration(seconds: float) -> str:
+    seconds = round(seconds)
+    return f"{seconds // 60}m{seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
+
+
 def _worker_main(conn, process: Processor, pdf_bytes: bytes) -> None:
     """Entry point of the worker process."""
     send_lock = threading.Lock()
+    omr_log.configure()
     try:
         os.nice(WORKER_NICENESS)
     except (AttributeError, OSError):
@@ -204,6 +221,12 @@ class JobStore:
                 self._order.remove(job_id)
             self._order.append(job_id)
 
+        log.info(
+            "job %s queued: %.1f MB PDF, %d job(s) ahead",
+            _short(job_id),
+            len(pdf_bytes) / 1024**2,
+            self.queue_position(job_id),
+        )
         self._executor.submit(self._run, job, pdf_bytes, process)
         return job
 
@@ -229,15 +252,25 @@ class JobStore:
         job.started_at = time.monotonic()
         job.stage = "Starting the worker"
         job.status = "running"
+        log.info(
+            "job %s started after %s queued, worker pid %s",
+            _short(job.id),
+            _duration(job.started_at - job.created_at),
+            worker.pid,
+        )
 
         outcome: tuple | None = None
         last_sample = 0.0
+        machine = omr_log.MachineSampler()
+        last_heartbeat = last_page = job.started_at
+        heartbeat_cpu = 0.0
         try:
             while outcome is None:
                 if not self._current(job):
                     # Cancelled: actually stop the work, rather than letting
                     # it grind on for nobody.
                     worker.kill()
+                    log.info("job %s cancelled, worker stopped", _short(job.id))
                     return
                 try:
                     if receiver.poll(1.0):
@@ -247,6 +280,18 @@ class JobStore:
                             job.stage = message[1]
                         elif kind == "progress":
                             job.pages_done, job.pages_total = message[1], message[2]
+                            now = time.monotonic()
+                            if job.pages_done == 0:
+                                log.info("job %s: %s page(s)", _short(job.id), job.pages_total)
+                            else:
+                                log.info(
+                                    "job %s: page %d/%d done, %s since the last",
+                                    _short(job.id),
+                                    job.pages_done,
+                                    job.pages_total,
+                                    _duration(now - last_page),
+                                )
+                            last_page = now
                         else:
                             outcome = message
                 except (EOFError, OSError):
@@ -255,6 +300,12 @@ class JobStore:
                 free = _free_memory_gb()
                 if free is not None and free < MIN_FREE_MEMORY_GB:
                     worker.kill()
+                    log.warning(
+                        "job %s: free memory down to %.2f GB, stopping the worker (%s)",
+                        _short(job.id),
+                        free,
+                        machine.sample(),
+                    )
                     self._finish(
                         job,
                         error=(
@@ -267,7 +318,31 @@ class JobStore:
                 now = time.monotonic()
                 if now - last_sample >= 5:
                     last_sample = now
+                    was_stalled = job.stalled
                     self._sample(job, now)
+                    if job.stalled and not was_stalled:
+                        log.warning(
+                            "job %s stalled: under %.0f%% of a core for %ds (%s)",
+                            _short(job.id),
+                            STALL_CPU_SHARE * 100,
+                            STALL_WINDOW_SECONDS,
+                            machine.sample(),
+                        )
+                if now - last_heartbeat >= HEARTBEAT_SECONDS:
+                    cpu = job.cpu_seconds or 0.0
+                    memory = omr_log.process_memory_gb(worker.pid)
+                    log.info(
+                        "job %s running %s: page %d/%s, %r | worker using %.1f cores%s | %s",
+                        _short(job.id),
+                        _duration(now - job.started_at),
+                        job.pages_done + 1,
+                        job.pages_total or "?",
+                        job.stage,
+                        (cpu - heartbeat_cpu) / (now - last_heartbeat),
+                        f", {memory[0]:.1f} GB (peak {memory[1]:.1f})" if memory else "",
+                        machine.sample(),
+                    )
+                    last_heartbeat, heartbeat_cpu = now, cpu
         finally:
             receiver.close()
             worker.join(timeout=10)
@@ -314,6 +389,18 @@ class JobStore:
         job.stage = None
         job.finished_at = time.monotonic()
         job.status = "failed" if error else "done"
+        seconds = job.finished_at - (job.started_at or job.created_at)
+        if error:
+            log.warning("job %s failed after %s: %s", _short(job.id), _duration(seconds), error)
+        else:
+            pages = job.pages_total or 0
+            log.info(
+                "job %s done in %s: %d page(s), %s a page",
+                _short(job.id),
+                _duration(seconds),
+                pages,
+                _duration(seconds / max(1, pages)),
+            )
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:

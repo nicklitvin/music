@@ -149,6 +149,26 @@ Redo this if the box is ever rebuilt. (The backend also stops a worker
 itself before free memory runs out -- see `MIN_FREE_MEMORY_GB` in
 `backend/app/services/jobs.py` -- so this is the backstop.)
 
+## Why is a sheet slow?
+
+Every OMR job logs what it spent its time on (`backend/app/services/omr_log.py`).
+PM2 keeps stderr in `~/.pm2/logs/music-backend-error.log`:
+
+```bash
+ssh -i your-key.pem ec2-user@3.145.73.36 'grep -a " omr " ~/.pm2/logs/music-backend-error.log | tail -40'
+```
+
+- `job … queued / started / done in … a page / failed after …` — one job's life.
+- `page N: 190s (staff net 50s, symbol net 136s, …)` — where a page's time went.
+- `staff net: … tiles … on N thread(s)` — the neural nets, which are most of it.
+- `job … running …` — a heartbeat every minute with the cores the worker
+  is getting, its memory, and the machine's free memory, swap, load and
+  **steal**. Steal well above 0% means AWS is withholding CPU — a t3 out of
+  CPU credits — and everything slows to a crawl until they build back up.
+
+For reference, a page took ~3¼ minutes on the t3.medium (2 vCPUs, but
+both are hyperthreads of one core), against ~2 minutes on two real cores.
+
 ## HTTPS certificate renewal
 
 The site's Let's Encrypt certificate (scrollsheetmusic.com + www) renews

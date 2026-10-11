@@ -20,7 +20,7 @@ import fitz  # PyMuPDF
 
 from app.config import settings
 from app.models import NoteBoundingBox, ScorePage
-from app.services import oemer_engine
+from app.services import oemer_engine, omr_log
 
 
 @dataclass
@@ -154,6 +154,13 @@ def process_pdf(
     ]
 
     workers = _worker_count(len(rendered))
+    omr_log.logger.info(
+        "%d page(s) rendered at %d dpi, %d at a time; %s",
+        len(rendered),
+        settings.render_dpi,
+        workers,
+        omr_log.MachineSampler().sample(),
+    )
     results: dict[int, tuple[list[NoteBoundingBox], str]] = {}
     if workers == 1:
         for item in rendered:

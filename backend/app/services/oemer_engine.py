@@ -38,16 +38,18 @@ note (oemer_fast.py) -- see each for the numbers.
 
 import argparse
 import importlib
+import logging
 import os
 import tempfile
 import threading
+import time
 import xml.etree.ElementTree as ET
 from typing import Any
 
 import numpy as np
 
 from app.models import NoteBoundingBox
-from app.services import oemer_fast, oemer_inference
+from app.services import oemer_fast, oemer_inference, omr_log
 from app.services.note_naming import step_alter_octave_to_note_name
 
 _LOCK = threading.Lock()
@@ -79,6 +81,43 @@ def ensure_checkpoints() -> None:
         save_path = os.path.join(save_dir, title.split("_")[1])
         if not os.path.exists(save_path):
             ete.download_file(title, url, save_path)
+
+
+# Short names for oemer's stage log lines, for the per-page timing log.
+STAGE_NAMES = {
+    "Extracting staffline and symbols": "staff net",
+    "Extracting layers of different symbols": "symbol net",
+    "Extracting stafflines": "stafflines",
+    "Extracting noteheads": "noteheads",
+    "Analyzing notehead bboxes": "notehead boxes",
+    "Instanitiating notes": "notes",
+    "Grouping noteheads": "grouping",
+    "Extracting symbols": "symbols",
+    "Extracting rhythm types": "rhythm",
+    "Building MusicXML document": "MusicXML",
+}
+
+
+class StageTimer(logging.Handler):
+    """Times oemer's stages from its own INFO log lines, and passes its
+    warnings on to the OMR log."""
+
+    def __init__(self, page_number: int) -> None:
+        super().__init__(level=logging.INFO)
+        self.page_number = page_number
+        self.marks: list[tuple[str, float]] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        message = record.getMessage()
+        if record.levelno >= logging.WARNING:
+            omr_log.logger.info("page %d: oemer warns %r", self.page_number, message)
+        else:
+            self.marks.append((STAGE_NAMES.get(message, message), time.perf_counter()))
+
+    def summary(self, end: float) -> str:
+        marks = self.marks + [("", end)]
+        spans = [(name, next_at - at) for (name, at), (_, next_at) in zip(marks, marks[1:])]
+        return ", ".join(f"{name} {seconds:.0f}s" for name, seconds in spans if seconds >= 0.5)
 
 
 # How much blank margin to give a sharp/flat/natural before oemer's classifier
@@ -151,6 +190,10 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
             without_deskew=True,
         )
 
+        timer = StageTimer(page_index + 1)
+        oemer_logger = logging.getLogger("oemer")
+        oemer_logger.addHandler(timer)
+        started = time.perf_counter()
         ete.clear_data()
         original_inference = ete.inference
         original_predict = symbol_extraction_mod.predict
@@ -176,6 +219,7 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
             symbol_extraction_mod.predict = original_predict
             for (module, name), original in originals.items():
                 setattr(module, name, original)
+            oemer_logger.removeHandler(timer)
             build_system_mod.AddNote.perform = original_add_note_perform
             build_system_mod.AddInit.perform = original_add_init_perform
             build_system_mod.AddMeasure.perform = original_add_measure_perform
@@ -186,6 +230,15 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         page_index=page_index,
         scale_x=page_width / working_width,
         scale_y=page_height / working_height,
+    )
+    peak = omr_log.peak_rss_gb()
+    omr_log.logger.info(
+        "page %d: %.0fs (%s), %d notes%s",
+        page_index + 1,
+        time.perf_counter() - started,
+        timer.summary(time.perf_counter()),
+        len(boxes),
+        f", worker peak memory {peak:.1f} GB" if peak is not None else "",
     )
     return boxes, music_xml
 
