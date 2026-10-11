@@ -97,11 +97,10 @@ def available_memory_gb() -> float | None:
 
 
 # Rough peak resident size of one oemer page run. It is the binding
-# constraint on parallelism -- see _worker_count. A single 300 dpi page has
-# been seen reaching 3.7 GB resident (plus swap) on the production box, so
-# this errs high: running one page at a time is slow, but two at once that
-# don't fit takes the site down.
-OEMER_MEMORY_GB = 4.0
+# constraint on parallelism -- see _worker_count. Measured at 2.16 GB for a
+# page at the default OMR_BATCH_SIZE of 4 (over 3 GB at oemer's own 16);
+# rounded up, since running two pages that don't fit takes the site down.
+OEMER_MEMORY_GB = 2.5
 
 
 def _worker_count(page_count: int) -> int:

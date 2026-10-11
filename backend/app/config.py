@@ -22,5 +22,10 @@ class Settings(BaseSettings):
     # core-hungry -- raise it only if there is RAM headroom to spare.
     omr_workers: int = 0
 
+    # How many image tiles oemer feeds its neural nets at once. Peak memory
+    # scales with it; output and speed don't (see oemer_engine.extract_page).
+    # oemer's own default is 16, which doesn't fit a 4 GB box.
+    omr_batch_size: int = 4
+
 
 settings = Settings()

@@ -76,3 +76,30 @@ def test_maps_multiple_notes_in_a_chord_independently():
     boxes = build_bounding_boxes(captured, page_index=0, scale_x=1.0, scale_y=1.0)
 
     assert [b.pitch for b in boxes] == ["C4", "E4"]
+
+
+def test_extract_page_runs_oemer_at_the_configured_batch_size(monkeypatch):
+    # oemer's own batch of 16 peaks over 3 GB a page -- more than the
+    # production box can give it. Checked without running the model: stand
+    # in for oemer's extract and look at the inference it would call.
+    import pytest
+    from oemer import ete
+
+    from app.services import oemer_engine
+
+    seen = {}
+
+    def fake_extract(args):
+        seen["batch_size"] = ete.inference.keywords.get("batch_size")
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(oemer_engine, "ensure_checkpoints", lambda: None)
+    monkeypatch.setattr(ete, "extract", fake_extract)
+    monkeypatch.setattr(oemer_engine.settings, "omr_batch_size", 3)
+    original = ete.inference
+
+    with pytest.raises(RuntimeError, match="stop here"):
+        oemer_engine.extract_page(b"png", 0, 100, 100)
+
+    assert seen["batch_size"] == 3
+    assert ete.inference is original  # put back afterwards

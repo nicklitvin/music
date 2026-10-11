@@ -30,12 +30,14 @@ uploaded content, scoped to one page's processing.
 """
 
 import argparse
+import functools
 import os
 import tempfile
 import threading
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from app.config import settings
 from app.models import NoteBoundingBox
 from app.services.note_naming import step_alter_octave_to_note_name
 
@@ -121,6 +123,12 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         )
 
         ete.clear_data()
+        original_inference = ete.inference
+        # oemer runs its U-Nets 16 image tiles at a time by default, and
+        # onnxruntime holds on to the peak. Measured on one page: over 3 GB
+        # at 16 (OOM-killed on the 4 GB production box), 2.16 GB at 4 --
+        # with identical notes out and no slower, since it's the same work.
+        ete.inference = functools.partial(original_inference, batch_size=settings.omr_batch_size)
         build_system_mod.AddNote.perform = patched_add_note_perform
         build_system_mod.AddInit.perform = patched_add_init_perform
         build_system_mod.AddMeasure.perform = patched_add_measure_perform
@@ -130,6 +138,7 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
             with open(mxl_path, "rb") as f:
                 music_xml = f.read().decode("utf-8")
         finally:
+            ete.inference = original_inference
             build_system_mod.AddNote.perform = original_add_note_perform
             build_system_mod.AddInit.perform = original_add_init_perform
             build_system_mod.AddMeasure.perform = original_add_measure_perform
