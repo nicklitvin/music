@@ -56,9 +56,12 @@ def _combine_music_xml(per_page_xml: list[str]) -> str:
     return "\n".join(f"<!-- page {i} -->\n{xml}" for i, xml in enumerate(per_page_xml))
 
 
-def _extract_one(args: tuple[int, bytes, int, int]) -> tuple[int, list[dict], str]:
-    """Worker entry point: must be module level and picklable."""
+def _extract_one(args: tuple[int, bytes, int, int], threads: int = 0) -> tuple[int, list[dict], str]:
+    """Worker entry point: must be module level and picklable. `threads`
+    overrides OMR_THREADS, so pages run side by side share the cores."""
     index, png_bytes, width, height = args
+    if threads:
+        settings.omr_threads = threads
     boxes, page_xml = oemer_engine.extract_page(png_bytes, index, width, height)
     return index, [box.model_dump() for box in boxes], page_xml
 
@@ -97,9 +100,10 @@ def available_memory_gb() -> float | None:
 
 
 # Rough peak resident size of one oemer page run. It is the binding
-# constraint on parallelism -- see _worker_count. Measured at 2.16 GB for a
-# page at the default OMR_BATCH_SIZE of 4 (over 3 GB at oemer's own 16);
-# rounded up, since running two pages that don't fit takes the site down.
+# constraint on parallelism -- see _worker_count. Measured at 1.4 GB on two
+# threads and 2.1 GB on twelve with oemer_inference's tiling (it was over
+# 3 GB with oemer's own); rounded up, since running two pages that don't fit
+# takes the site down.
 OEMER_MEMORY_GB = 2.5
 
 
@@ -161,7 +165,11 @@ def process_pdf(
         # registry rules out running two pages in one process, and separate
         # processes hand oemer's memory back to the OS between pages.
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(_extract_one, item) for item in rendered]
+            # The nets gain little past 2 threads each (measured: 1 thread
+            # 2.8s a tile, 2 1.8s, 4+ 1.45s), so cores go further split
+            # between pages than all given to each.
+            threads = settings.omr_threads or max(1, (os.cpu_count() or 2) // workers)
+            futures = [pool.submit(_extract_one, item, threads) for item in rendered]
             for future in as_completed(futures):
                 index, raw_boxes, page_xml = future.result()
                 results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)

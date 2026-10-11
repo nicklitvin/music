@@ -28,11 +28,12 @@ class Settings(BaseSettings):
     omr_batch_size: int = 4
 
     # The symbol net's tiles: about this many px square, overlapping by
-    # this much (see oemer_inference). Measured on a page at 2 threads:
-    # 384/64 took 70s at 0.8 GB, against oemer's own tiling's ~240s; 640 px
-    # tiles were no faster and needed 1.8 GB.
+    # this much (see oemer_inference). On four test pages, 384/96 gave the
+    # same notes as oemer's own tiling bar 14 of 2391 (64 px of overlap:
+    # 21), in well under half the time. Bigger tiles are no faster, just
+    # hungrier: on one page 640 px peaked at 1.8 GB, 384 px at 0.8 GB.
     omr_tile_size: int = 384
-    omr_tile_overlap: int = 64
+    omr_tile_overlap: int = 96
 
     # Threads for the neural nets. 0 uses every core the machine reports.
     omr_threads: int = 0

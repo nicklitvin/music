@@ -16,6 +16,10 @@ Usage:
     --pixels             oemer's working size; by default it rescales
                          every page to ~3.7M pixels
     --oemer-tiling       oemer's own inference, for comparison
+    --dump PATH          also save the notes found, to diff two runs
+
+oemer prints progress to stdout too; the result is the line starting
+"RESULT ".
 """
 
 import argparse
@@ -41,6 +45,7 @@ def main() -> None:
     parser.add_argument("--threads", type=int, default=settings.omr_threads)
     parser.add_argument("--pixels", type=float, default=None)
     parser.add_argument("--oemer-tiling", action="store_true")
+    parser.add_argument("--dump", type=Path, default=None)
     args = parser.parse_args()
 
     settings.render_dpi = args.dpi
@@ -94,8 +99,11 @@ def main() -> None:
                 used.add(i)
                 break
 
+    if args.dump:
+        args.dump.write_text(json.dumps([box.model_dump() for box in boxes]))
     print(
-        json.dumps(
+        "RESULT "
+        + json.dumps(
             {
                 "piece": args.piece,
                 "wall_seconds": round(end - start),
@@ -104,8 +112,7 @@ def main() -> None:
                 "stored_notes": len(stored),
                 "matching": len(used),
                 "stages_wall_cpu": per_stage,
-            },
-            indent=2,
+            }
         )
     )
 

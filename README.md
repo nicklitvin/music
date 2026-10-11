@@ -134,7 +134,7 @@ page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
   `app/services/oemer_models.py` makes copies that take any size (output
   identical at the original size), and `app/services/oemer_inference.py`
   runs the symbol net on a grid of ~384 px tiles fitted to the page,
-  blended over a 64 px overlap, and the staff net on its own tiles
+  blended over a 96 px overlap, and the staff net on its own tiles
   without overlap. Nets: ~245s -> ~100s; peak memory down too. A pixel
   costs the same at any tile size, so bigger tiles aren't faster -- just
   hungrier (640 px: 1.8 GB against 384 px's 0.8 GB).
