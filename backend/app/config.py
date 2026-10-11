@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # How far apart oemer's first (staff) net places its 256 px image tiles.
     # oemer's own 128 overlaps them 4x; 256 doesn't overlap them, for the
-    # same notes 25% faster (see oemer_engine.extract_page).
+    # same notes 20% faster (see oemer_engine.extract_page).
     omr_staff_step_size: int = 256
 
 

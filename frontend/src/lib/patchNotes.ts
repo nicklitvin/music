@@ -11,6 +11,11 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-11',
+    title: 'Faster recognition',
+    changes: ['Recognising a sheet takes about 20% less time, with the same notes found.'],
+  },
+  {
     date: '2026-10-10',
     title: 'Uploads that pick up where they left off',
     changes: [

@@ -12,11 +12,13 @@ import { countPdfPages } from './pdfPages'
 import type { PendingUploadRecord } from './types'
 import { uuid } from './uuid'
 
-// Measured on the machine this runs on: oemer takes a median 308s per page
-// (296-374s over 57 pages), CPU-only. Used to turn "processing..." into an
-// actual estimate -- at this rate a 12-page sheet is over an hour, which the
-// reader deserves to be told up front rather than discovering.
-export const SECONDS_PER_PAGE = 308
+// Measured on the machine this runs on: oemer took a median 308s per page
+// (296-374s over 57 pages), CPU-only, and 20% less since its staff net
+// stopped overlapping tiles (OMR_STAFF_STEP_SIZE). Used to turn
+// "processing..." into an actual estimate -- a 12-page sheet is most of an
+// hour, which the reader deserves to be told up front rather than
+// discovering.
+export const SECONDS_PER_PAGE = 250
 
 // How often to ask the server how a sheet is getting on. Pages take
 // minutes, so there's nothing to gain from asking more often.

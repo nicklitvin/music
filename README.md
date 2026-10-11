@@ -108,7 +108,7 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 ```
 
-Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`,
+Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`, `OMR_STAFF_STEP_SIZE`,
 `USE_LEARNED_TRANSCRIPTION` (see "Note detection" above).
 
 ### How long OMR takes
@@ -120,6 +120,24 @@ why the upload UI shows an estimated time remaining rather than a bare
 spinner, and why `scripts/extract_all_pages.py` is resumable and runs one
 page per subprocess (oemer is memory-hungry enough to get OOM-killed on a
 long run, and a kill should only cost the page in flight).
+
+Those timings predate one speed-up: oemer's staff net no longer overlaps
+its image tiles (`OMR_STAFF_STEP_SIZE`, default 256), which takes ~20% off
+a page with the same notes out. What was tried, on page 0 of four pieces
+with `backend/scripts/omr_cost_probe.py`:
+
+- **Where the time goes:** ~85% in oemer's two neural nets (staff net
+  ~90s, symbol net ~185s of a 323s page); the rule-based passes after
+  them are ~45s.
+- **Lower render DPI does nothing.** oemer rescales every page to ~3.7M
+  pixels before anything else, so 150, 200 and 300 dpi all took ~320s.
+- **A smaller working size** (oemer's rescale target) is risky: 2.5M
+  pixels was 30% faster but changed 8-11% of notes, and at 1.8M oemer
+  couldn't find the staves at all.
+- **Less tile overlap in the symbol net** is where most of the time is,
+  but it's what reads key signatures: without it, one test page's whole
+  line in F major came out with F#s and B naturals. Only the staff net's
+  overlap is safe to drop.
 
 ## Accuracy benchmarks
 

@@ -130,8 +130,8 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         #
         # Each net reads the page in overlapping tiles (a new tile every 128
         # px) and averages the overlaps; the nets are ~85% of a page's time.
-        # The staff net's tiles needn't overlap: unchanged notes and 25%
-        # faster. The symbol net's must -- with less overlap it misread key
+        # The staff net's tiles needn't overlap: the same notes (98.8-100%
+        # over four test pages) and 20% faster. The symbol net's must -- with less overlap it misread key
         # signatures, turning a whole line's F/Bb into F#/B.
         def inference(model_path, *args, **kwargs):
             if os.path.basename(os.path.normpath(model_path)) == "unet_big":
