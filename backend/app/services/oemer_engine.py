@@ -28,13 +28,16 @@ short-lived temp file (deleted immediately after, via TemporaryDirectory) --
 a narrow, unavoidable exception to the app's normal zero-disk-writes rule for
 uploaded content, scoped to one page's processing.
 
-Two more of oemer's functions are swapped out for the duration of a page:
-its neural-net inference, for a version that doesn't redo most of the work
-(oemer_inference.py), and its accidental classifier, for one that gives
-the glyph a margin first (`predict_padded`) -- see each for the numbers.
+More of oemer is swapped out for the duration of a page: its neural-net
+inference, for a version that doesn't redo most of the work
+(oemer_inference.py); its accidental classifier, for one that gives the
+glyph a margin first (`predict_padded`); and six rule-based functions, for
+copies that give the same results without scanning the whole page per
+note (oemer_fast.py) -- see each for the numbers.
 """
 
 import argparse
+import importlib
 import os
 import tempfile
 import threading
@@ -44,7 +47,7 @@ from typing import Any
 import numpy as np
 
 from app.models import NoteBoundingBox
-from app.services import oemer_inference
+from app.services import oemer_fast, oemer_inference
 from app.services.note_naming import step_alter_octave_to_note_name
 
 _LOCK = threading.Lock()
@@ -155,6 +158,11 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         # does most of their work several times over -- see oemer_inference.
         ete.inference = oemer_inference.inference
         symbol_extraction_mod.predict = predict_padded
+        originals = {}
+        for (module_name, name), replacement in oemer_fast.REPLACEMENTS.items():
+            module = importlib.import_module(module_name)
+            originals[(module, name)] = getattr(module, name)
+            setattr(module, name, replacement)
         build_system_mod.AddNote.perform = patched_add_note_perform
         build_system_mod.AddInit.perform = patched_add_init_perform
         build_system_mod.AddMeasure.perform = patched_add_measure_perform
@@ -166,6 +174,8 @@ def extract_page(png_bytes: bytes, page_index: int, page_width: int, page_height
         finally:
             ete.inference = original_inference
             symbol_extraction_mod.predict = original_predict
+            for (module, name), original in originals.items():
+                setattr(module, name, original)
             build_system_mod.AddNote.perform = original_add_note_perform
             build_system_mod.AddInit.perform = original_add_init_perform
             build_system_mod.AddMeasure.perform = original_add_measure_perform
