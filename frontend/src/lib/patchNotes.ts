@@ -14,7 +14,7 @@ export const PATCH_NOTES: PatchNote[] = [
     date: '2026-10-11',
     title: 'Faster, more accurate recognition',
     changes: [
-      'Recognising a sheet takes about half as long as before.',
+      'Recognising a sheet takes well under half as long as before: about 2 minutes a page.',
       'Key signatures are read far more reliably: lines in flat keys were sometimes read as sharp keys, getting every F or B in them wrong.',
     ],
   },

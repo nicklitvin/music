@@ -221,7 +221,7 @@ export function Scores() {
             device.
           </p>
           <p className="subtle-text">
-            Recognition takes about 2½ minutes per page, so a 10-page sheet is roughly 25 minutes. You'll see an
+            Recognition takes about 2 minutes per page, so a 10-page sheet is roughly 20 minutes. You'll see an
             estimate in your library while it works, and you can carry on using the app — or close it and come
             back later.
           </p>

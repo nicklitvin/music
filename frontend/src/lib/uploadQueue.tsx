@@ -13,11 +13,11 @@ import type { PendingUploadRecord } from './types'
 import { uuid } from './uuid'
 
 // Measured: oemer took a median 308s per page CPU-only (296-374s over 57
-// pages), and about half that since its neural nets stopped redoing work
-// (see "How long OMR takes" in the README) -- 137-170s a page on two
-// threads, about what the server has. Used to turn "processing..." into an
-// actual estimate, which the reader deserves up front for a long sheet.
-export const SECONDS_PER_PAGE = 150
+// pages), and under half that since it stopped redoing work (see "How
+// long OMR takes" in the README) -- 124-140s a page on two threads, about
+// what the server has. Used to turn "processing..." into an actual
+// estimate, which the reader deserves up front for a long sheet.
+export const SECONDS_PER_PAGE = 135
 
 // How often to ask the server how a sheet is getting on. Pages take
 // minutes, so there's nothing to gain from asking more often.

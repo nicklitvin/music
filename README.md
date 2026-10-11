@@ -121,12 +121,12 @@ spinner, and why `scripts/extract_all_pages.py` is resumable and runs one
 page per subprocess (oemer is memory-hungry enough to get OOM-killed on a
 long run, and a kill should only cost the page in flight).
 
-Those timings predate two speed-ups that together take a page from
-~270s to ~135s on two threads (about what the server has), measured on
-page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
+Those timings predate the speed-ups below, which together take a page
+from 270-315s to 125-140s on two threads (about what the server has),
+measured on page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
 
-- **Where the time goes:** ~85% in oemer's two neural nets; the
-  rule-based passes after them are 30-70s.
+- **Where the time went:** ~85% in oemer's two neural nets; the
+  rule-based passes after them were 30-70s.
 - **oemer's tiling did the nets' work ~5 times over.** It slides each
   net's 256/288 px training window over the page every 128 px and
   averages the overlaps. The nets had that tile size baked in, but only
@@ -138,6 +138,12 @@ page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
   without overlap. Nets: ~245s -> ~100s; peak memory down too. A pixel
   costs the same at any tile size, so bigger tiles aren't faster -- just
   hungrier (640 px: 1.8 GB against 384 px's 0.8 GB).
+- **The rule-based passes searched the whole page per note.** Six of
+  oemer's functions found each note's, stem's, group's or beam's pixels
+  by comparing the whole 3.7-megapixel label map to its id.
+  `app/services/oemer_fast.py` has copies that search only each one's
+  bounding box (all found in one `find_objects` pass): 30-70s -> 4-12s a
+  page, with MusicXML byte-identical to oemer's on all four test pages.
 - **Key signatures were half luck.** oemer classifies each sharp/flat
   from a crop so tight the glyph touches its edges, and read clear flats
   as naturals about half the time -- and a key of "naturals" becomes a
@@ -152,6 +158,11 @@ page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
   staves at all.
 - **int8 quantization** of the nets was only ~15% faster on this CPU and
   wrecked the staff net's output.
+- **More threads barely help** a net past two (a tile: 2.8s on 1 thread,
+  1.8s on 2, 1.45s on 4+), nor do two tiles at once on a thread each
+  (~10%). A bigger server would mostly help by doing pages side by side.
+- **512 px tiles** were ~15s a page faster again, but misread a line of
+  one test page (F naturals in E major).
 
 ## Accuracy benchmarks
 
