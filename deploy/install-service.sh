@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ONE-TIME server setup. Run it once, by hand, then deploys just work:
 #
-#   ssh -i your-key.pem USER@3.145.73.36 'bash -s' < deploy/install-service.sh
+#   ssh -i your-key.pem USER@18.219.22.51 'bash -s' < deploy/install-service.sh
 #
 # The backend is currently a bare python process someone started by hand.
 # That works right up until the box reboots or the process dies, at which
