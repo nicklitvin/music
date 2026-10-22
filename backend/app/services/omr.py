@@ -13,14 +13,14 @@ import base64
 import os
 import sys
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 import fitz  # PyMuPDF
 
 from app.config import settings
 from app.models import NoteBoundingBox, ScorePage
-from app.services import oemer_engine, omr_log
+from app.services import oemer_engine, omr_log, omr_remote
 
 
 @dataclass
@@ -153,16 +153,30 @@ def process_pdf(
         for index, png_bytes, width, height in rendered
     ]
 
-    workers = _worker_count(len(rendered))
+    remote = bool(settings.omr_lambda_function)
+    workers = (
+        max(1, min(settings.omr_lambda_concurrency, len(rendered)))
+        if remote
+        else _worker_count(len(rendered))
+    )
     omr_log.logger.info(
-        "%d page(s) rendered at %d dpi, %d at a time; %s",
+        "%d page(s) rendered at %d dpi, %d at a time%s; %s",
         len(rendered),
         settings.render_dpi,
         workers,
+        f" on Lambda ({settings.omr_lambda_function})" if remote else "",
         omr_log.MachineSampler().sample(),
     )
     results: dict[int, tuple[list[NoteBoundingBox], str]] = {}
-    if workers == 1:
+    if remote:
+        # Threads are enough: each one just waits on its page's Lambda.
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(omr_remote.extract_remote, item) for item in rendered]
+            for future in as_completed(futures):
+                index, raw_boxes, page_xml = future.result()
+                results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)
+                report(len(results))
+    elif workers == 1:
         for item in rendered:
             index, raw_boxes, page_xml = _extract_one(item)
             results[index] = ([NoteBoundingBox(**b) for b in raw_boxes], page_xml)

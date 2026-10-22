@@ -1,0 +1,5 @@
+# Only lambda/Dockerfile builds from here, and it needs app/ and lambda/.
+*
+!app/
+!lambda/
+**/__pycache__

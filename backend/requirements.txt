@@ -22,6 +22,10 @@ oemer==0.1.8
 # against numpy 1.26 without pulling in anything else.
 onnx==1.18.0
 
+# Invokes the OMR Lambda when OMR_LAMBDA_FUNCTION is set
+# (app/services/omr_remote.py). Pure Python; imported only then.
+boto3==1.43.117
+
 # Used directly by scripts/annotate_notes.py (oemer pulls it in transitively
 # too, but this script takes a direct dependency on it).
 pillow==12.3.0

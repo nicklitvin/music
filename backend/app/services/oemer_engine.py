@@ -83,6 +83,18 @@ def ensure_checkpoints() -> None:
             ete.download_file(title, url, save_path)
 
 
+def prepare_models() -> None:
+    """Gets every model file a page needs ready ahead of time -- the
+    downloaded weights and their any-size copies -- and loads the nets.
+    The Lambda image runs this at build time, since its filesystem is
+    read-only once deployed."""
+    import oemer
+
+    ensure_checkpoints()
+    for net in ("unet_big", "seg_net"):
+        oemer_inference._session(os.path.join(oemer.MODULE_PATH, "checkpoints", net))
+
+
 # Short names for oemer's stage log lines, for the per-page timing log.
 STAGE_NAMES = {
     "Extracting staffline and symbols": "staff net",

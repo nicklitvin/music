@@ -109,6 +109,7 @@ python -m venv .venv
 ```
 
 Env vars (see `.env.example`): `FRONTEND_ORIGIN` (CORS), `RENDER_DPI`, `OMR_TILE_SIZE`/`OMR_TILE_OVERLAP`/`OMR_THREADS`,
+`OMR_LAMBDA_FUNCTION`/`OMR_LAMBDA_REGION` (OMR on Lambda),
 `USE_LEARNED_TRANSCRIPTION` (see "Note detection" above).
 
 ### How long OMR takes
@@ -163,6 +164,12 @@ measured on page 0 of four pieces with `backend/scripts/omr_cost_probe.py`:
   (~10%). A bigger server would mostly help by doing pages side by side.
 - **512 px tiles** were ~15s a page faster again, but misread a line of
   one test page (F naturals in E major).
+
+Since the nets can't get much cheaper without losing notes, OMR can
+instead run **on AWS Lambda** (`OMR_LAMBDA_FUNCTION`, see
+[`backend/lambda/README.md`](backend/lambda/README.md)): one invocation per
+page, all pages at once, paid per second of use, so the always-on server
+no longer has to be sized for it.
 
 ## Accuracy benchmarks
 

@@ -38,5 +38,12 @@ class Settings(BaseSettings):
     # Threads for the neural nets. 0 uses every core the machine reports.
     omr_threads: int = 0
 
+    # Run OMR on AWS Lambda instead of on this machine: the function's name
+    # or ARN (see backend/lambda/README.md). Empty runs it here. Pages go
+    # out all at once, up to omr_lambda_concurrency of them.
+    omr_lambda_function: str = ""
+    omr_lambda_region: str = ""
+    omr_lambda_concurrency: int = 10
+
 
 settings = Settings()

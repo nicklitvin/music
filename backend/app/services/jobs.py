@@ -38,6 +38,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.config import settings
 from app.services import omr_log
 
 log = omr_log.logger
@@ -377,7 +378,8 @@ class JobStore:
             job.cpu_samples.pop(0)
         start_time, start_cpu = job.cpu_samples[0]
         elapsed = now - start_time
-        if elapsed >= STALL_WINDOW_SECONDS:
+        # With OMR on Lambda the worker only waits, so low CPU is normal.
+        if elapsed >= STALL_WINDOW_SECONDS and not settings.omr_lambda_function:
             job.stalled = (cpu - start_cpu) / elapsed < STALL_CPU_SHARE
             free = _free_memory_gb()
             job.low_memory = free is not None and free < LOW_MEMORY_GB

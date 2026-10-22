@@ -1,0 +1,19 @@
+# What the OMR Lambda needs: oemer and the code around it, nothing of the
+# web app. Same pins as ../requirements.txt (tests/test_omr_remote.py checks
+# they stay in step), except:
+#   * onnxruntime rather than onnxruntime-gpu, at the same version -- the
+#     same CPU kernels without ~190 MB of CUDA libraries, which a Lambda
+#     can't use. Which is also why oemer itself is installed with --no-deps
+#     (see the Dockerfile): it asks for onnxruntime-gpu.
+#   * matplotlib and typing-extensions, oemer's other imports, listed here
+#     for that same reason.
+numpy==1.26.4
+scipy==1.11.4
+opencv-python-headless==4.10.0.84
+scikit-learn==1.5.2
+onnxruntime==1.18.1
+onnx==1.18.0
+pillow==12.3.0
+pydantic-settings==2.7.1
+matplotlib
+typing-extensions

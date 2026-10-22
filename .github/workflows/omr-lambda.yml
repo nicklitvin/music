@@ -1,0 +1,98 @@
+name: OMR Lambda
+
+# Builds the OMR container image (backend/lambda/Dockerfile), pushes it to
+# ECR and points the Lambda at it. Does nothing until AWS is set up for it
+# -- see backend/lambda/README.md, whose setup script prints the one
+# variable this needs (AWS_DEPLOY_ROLE_ARN).
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/app/**
+      - backend/lambda/**
+      - backend/.dockerignore
+      - .github/workflows/omr-lambda.yml
+  workflow_dispatch:
+
+concurrency:
+  group: omr-lambda
+  cancel-in-progress: false
+
+# GitHub's OIDC token is what AWS trusts instead of stored keys.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+  FUNCTION: ${{ vars.OMR_LAMBDA_FUNCTION || 'music-omr' }}
+  # 3538 MB is the most memory that still gets 2 vCPUs; a page peaks at
+  # ~2.3 GB. More memory buys more vCPUs, which oemer's nets use poorly
+  # (see "How long OMR takes" in the README), so it costs more per page.
+  MEMORY_MB: ${{ vars.OMR_LAMBDA_MEMORY_MB || '3538' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check AWS is set up
+        id: setup
+        env:
+          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$ROLE" ]; then
+            echo "::notice::AWS_DEPLOY_ROLE_ARN isn't set, so the OMR Lambda isn't deployed. See backend/lambda/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.setup.outputs.ready == 'true'
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        if: steps.setup.outputs.ready == 'true'
+        id: ecr
+
+      - name: Build and push the image
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/$FUNCTION:$GITHUB_SHA"
+          # Lambda only takes a plain single-platform manifest, hence no
+          # provenance attestation.
+          docker buildx build --platform linux/amd64 --provenance=false --load \
+            -f backend/lambda/Dockerfile -t "$image" backend
+          docker push "$image"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Create or update the function
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          config=(--memory-size "$MEMORY_MB" --timeout 900
+                  --environment "Variables={MPLCONFIGDIR=/tmp/matplotlib}")
+          if aws lambda get-function --function-name "$FUNCTION" >/dev/null 2>&1; then
+            aws lambda update-function-code --function-name "$FUNCTION" --image-uri "$IMAGE" >/dev/null
+            aws lambda wait function-updated --function-name "$FUNCTION"
+            aws lambda update-function-configuration --function-name "$FUNCTION" "${config[@]}" >/dev/null
+            aws lambda wait function-updated --function-name "$FUNCTION"
+          else
+            aws lambda create-function --function-name "$FUNCTION" --package-type Image \
+              --code ImageUri="$IMAGE" --architectures x86_64 \
+              --role "arn:aws:iam::$account:role/music-omr-lambda" "${config[@]}" >/dev/null
+            aws lambda wait function-active --function-name "$FUNCTION"
+          fi
+
+      - name: Check it starts
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          aws lambda invoke --function-name "$FUNCTION" \
+            --cli-binary-format raw-in-base64-out --payload '{"ping": true}' out.json >/dev/null
+          cat out.json; echo
+          grep -q '"ok": true' out.json

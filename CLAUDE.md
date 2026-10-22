@@ -33,7 +33,10 @@
   that doesn't have the job. One narrow, intentional exception: OMR (`oemer`) only accepts a file path, so
   `backend/app/services/oemer_engine.py` writes a page's PNG to a
   `TemporaryDirectory` for the duration of that page's processing and
-  deletes it immediately after — nothing persists past that page.
+  deletes it immediately after — nothing persists past that page. The
+  same holds when OMR runs on AWS Lambda (`omr_remote.py`, opt-in via
+  `OMR_LAMBDA_FUNCTION`): the page travels in the invocation payload and
+  the result in the response — never stage pages in S3 or anywhere else.
 - **Client-side persistence**: all visual/audio assets (page images,
   MusicXML, bounding boxes, and the original uploaded PDF) live in the
   browser's IndexedDB via Dexie — never in a server-side database. Uploads
