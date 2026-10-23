@@ -10,6 +10,7 @@ thread pool).
 """
 
 import base64
+import logging
 import os
 import sys
 from collections.abc import Callable
@@ -169,6 +170,11 @@ def process_pdf(
     )
     results: dict[int, tuple[list[NoteBoundingBox], str]] = {}
     if remote:
+        # Shown as the job's stage (anything under the "oemer" logger is):
+        # otherwise it would still say "Reading the PDF" for minutes.
+        logging.getLogger("oemer.remote").info(
+            "Recognising %s on AWS", "the page" if len(rendered) == 1 else "every page at once"
+        )
         # Threads are enough: each one just waits on its page's Lambda.
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = [pool.submit(omr_remote.extract_remote, item) for item in rendered]

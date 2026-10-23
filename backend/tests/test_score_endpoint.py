@@ -236,3 +236,39 @@ def test_a_busy_worker_is_not_flagged(monkeypatch):
     for now in (0.0, 60.0, 130.0):
         jobs.store._sample(job, now)
     assert not job.stalled
+
+
+def test_time_left_on_the_server_counts_down_page_by_page(monkeypatch):
+    from app.services import jobs
+
+    monkeypatch.setattr(jobs.settings, "omr_lambda_function", "")
+    job = jobs.Job(id="local", status="running", pages_total=3, pages_started_at=0.0)
+
+    assert jobs.seconds_left(job, now=0.0) == 3 * jobs.SECONDS_PER_PAGE
+    job.pages_done, job.last_page_at = 1, 200.0
+    assert jobs.seconds_left(job, now=250.0) == 2 * jobs.SECONDS_PER_PAGE - 50
+    # A page running long doesn't eat into the ones after it.
+    assert jobs.seconds_left(job, now=1000.0) == jobs.SECONDS_PER_PAGE
+
+
+def test_time_left_on_lambda_is_one_page_however_long_the_sheet(monkeypatch):
+    from app.services import jobs
+
+    monkeypatch.setattr(jobs.settings, "omr_lambda_function", "music-omr")
+    monkeypatch.setattr(jobs.settings, "omr_lambda_concurrency", 10)
+    one = jobs.LAMBDA_SECONDS_PER_PAGE
+    sheet = jobs.Job(id="lambda", status="running", pages_total=8, pages_started_at=100.0)
+
+    assert jobs.seconds_left(sheet, now=100.0) == one
+    assert jobs.seconds_left(sheet, now=160.0) == one - 60
+    assert jobs.seconds_left(sheet, now=100.0 + 2 * one) == 0
+    # Past the concurrency limit, the rest wait for a slot.
+    sheet.pages_total = 15
+    assert jobs.seconds_left(sheet, now=100.0) == 2 * one
+
+
+def test_no_time_left_until_the_pages_are_known():
+    from app.services import jobs
+
+    assert jobs.seconds_left(jobs.Job(id="q", status="queued")) is None
+    assert jobs.seconds_left(jobs.Job(id="r", status="running")) is None

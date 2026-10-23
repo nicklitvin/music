@@ -34,6 +34,8 @@ class ProcessScoreJob(BaseModel):
     queuePosition: int
     # What the worker is doing right now (oemer's own stage names).
     stage: str | None = None
+    # Roughly how long until it's done; None while that can't be said.
+    secondsLeft: int | None = None
     # CPU the worker has used so far -- proof it is actually working, and
     # the basis for `warning`. None where it can't be measured.
     cpuSeconds: float | None = None

@@ -146,6 +146,17 @@ describe('upload queue', () => {
     expect((await db.uploads.get('upload-1'))?.pagesDone).toBe(1)
   })
 
+  it("shows the server's own estimate of the time left", async () => {
+    await db.uploads.put(pendingUpload())
+    mockServer({
+      'GET /api/process-score/upload-1': [() => json(job('running', { secondsLeft: 200 }))],
+    })
+
+    renderScores()
+
+    expect(await screen.findByText(/0 of 2 pages done · up to about 3 min left/)).toBeInTheDocument()
+  })
+
   it('keeps a rejected upload on screen with its error, across a refresh', async () => {
     await db.uploads.put(pendingUpload())
     mockServer({

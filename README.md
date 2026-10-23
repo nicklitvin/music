@@ -169,7 +169,11 @@ Since the nets can't get much cheaper without losing notes, OMR can
 instead run **on AWS Lambda** (`OMR_LAMBDA_FUNCTION`, see
 [`backend/lambda/README.md`](backend/lambda/README.md)): one invocation per
 page, all pages at once, paid per second of use, so the always-on server
-no longer has to be sized for it.
+no longer has to be sized for it. A page takes about as long there as on
+the old server (187s), but a 4-page sheet then takes 3m14s rather than
+12m24s. The upload UI's time-left estimate comes from the server
+(`seconds_left` in `app/services/jobs.py`), which knows which way the
+pages are being run.
 
 ## Accuracy benchmarks
 

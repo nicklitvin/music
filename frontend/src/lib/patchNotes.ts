@@ -11,6 +11,14 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-23',
+    title: 'Every page at once',
+    changes: [
+      'All the pages of a sheet are now recognised at the same time, so a whole sheet takes about 3–4 minutes however many pages it has (sheets over 10 pages take a little longer).',
+      'The time left on an upload comes from the server and counts down accurately, instead of assuming one page after another.',
+    ],
+  },
+  {
     date: '2026-10-11',
     title: 'Faster, more accurate recognition',
     changes: [

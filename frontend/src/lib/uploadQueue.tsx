@@ -12,13 +12,6 @@ import { countPdfPages } from './pdfPages'
 import type { PendingUploadRecord } from './types'
 import { uuid } from './uuid'
 
-// Measured on the production server (a t3.medium: one CPU core, two
-// hyperthreads): 191s a page, from the per-page OMR log (see "Why is a
-// sheet slow?" in deploy/README.md). It was ~10 minutes before oemer
-// stopped redoing work. Used to turn "processing..." into an actual
-// estimate, which the reader deserves up front for a long sheet.
-export const SECONDS_PER_PAGE = 195
-
 // How often to ask the server how a sheet is getting on. Pages take
 // minutes, so there's nothing to gain from asking more often.
 export const POLL_INTERVAL_MS = 5000
@@ -34,6 +27,8 @@ export interface PendingUpload extends Omit<PendingUploadRecord, 'file' | 'pdf'>
   uploadProgress?: number
   // What the server's worker is doing, and whether it's actually running.
   stage?: string
+  // The server's estimate of the time left (see ProcessScoreJob).
+  secondsLeft?: number
   warning?: string
   // The server couldn't be reached on the last attempt; still retrying.
   offline?: boolean
@@ -183,6 +178,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
               patch(id, {
                 ...progress,
                 stage: job.stage ?? undefined,
+                secondsLeft: job.secondsLeft ?? undefined,
                 warning: job.warning ?? undefined,
                 offline: false,
               })

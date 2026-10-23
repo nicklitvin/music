@@ -24,14 +24,14 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-2' }}
-  # Read from a variable or a secret -- it isn't secret, but both work.
-  DEPLOY_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN || secrets.AWS_DEPLOY_ROLE_ARN }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+  DEPLOY_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
   FUNCTION: ${{ vars.OMR_LAMBDA_FUNCTION || 'music-omr' }}
-  # 3538 MB is the most memory that still gets 2 vCPUs; a page peaks at
-  # ~2.3 GB. More memory buys more vCPUs, which oemer's nets use poorly
-  # (see "How long OMR takes" in the README), so it costs more per page.
-  MEMORY_MB: ${{ vars.OMR_LAMBDA_MEMORY_MB || '3538' }}
+  # 3008 MB is the most a new AWS account allows (~1.7 vCPUs); a page
+  # peaks at ~2.5 GB. More memory buys more vCPUs, which oemer's nets use
+  # poorly (see "How long OMR takes" in the README), so it costs more per
+  # page.
+  MEMORY_MB: ${{ vars.OMR_LAMBDA_MEMORY_MB || '3008' }}
 
 jobs:
   deploy:

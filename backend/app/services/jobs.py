@@ -28,6 +28,7 @@ by resubmitting the PDF it keeps in IndexedDB.
 """
 
 import logging
+import math
 import multiprocessing
 import os
 import sys
@@ -73,6 +74,14 @@ WORKER_NICENESS = 10
 # How often a running job logs how it's getting on (see omr_log).
 HEARTBEAT_SECONDS = 60
 
+# How long a page takes, for the time-left estimate. Both measured from the
+# per-page OMR log: on the server one page at a time (~190s on two cores);
+# on Lambda (3008 MB) 187s for each page of a 4-page sheet, all of which ran
+# at once -- so a sheet takes as long as its slowest page, which is where
+# the margin comes in (one dense page took 249s).
+SECONDS_PER_PAGE = 195
+LAMBDA_SECONDS_PER_PAGE = 220
+
 # A worker killed by signal 9 is, on a box with no one else killing things,
 # the kernel's OOM killer.
 _KILLED = (-9, 137)
@@ -94,6 +103,10 @@ class Job:
     created_at: float = field(default_factory=time.monotonic)
     started_at: float | None = None
     finished_at: float | None = None
+    # When the pages were rendered and recognition began, and when the last
+    # page finished: what the time-left estimate counts from.
+    pages_started_at: float | None = None
+    last_page_at: float | None = None
     # (monotonic time, worker CPU seconds) samples for stall detection.
     cpu_samples: list[tuple[float, float]] = field(default_factory=list)
 
@@ -116,6 +129,24 @@ class _StageHandler(logging.Handler):
             self._send(("stage", record.getMessage()))
         except Exception:
             pass
+
+
+def seconds_left(job: "Job", now: float | None = None) -> int | None:
+    """Roughly how long until `job` is done, or None before that can be
+    said (still queued, or the PDF not yet rendered)."""
+    if job.status != "running" or not job.pages_total or job.pages_started_at is None:
+        return None
+    now = time.monotonic() if now is None else now
+    if settings.omr_lambda_function:
+        # Every page at once, up to the concurrency limit; past that, the
+        # rest wait for a slot.
+        rounds = math.ceil(job.pages_total / max(1, settings.omr_lambda_concurrency))
+        left = rounds * LAMBDA_SECONDS_PER_PAGE - (now - job.pages_started_at)
+    else:
+        pages_after_this = max(0, job.pages_total - job.pages_done - 1)
+        this_page = SECONDS_PER_PAGE - (now - (job.last_page_at or job.pages_started_at))
+        left = pages_after_this * SECONDS_PER_PAGE + max(0, this_page)
+    return max(0, round(left))
 
 
 def _short(job_id: str) -> str:
@@ -283,6 +314,7 @@ class JobStore:
                             job.pages_done, job.pages_total = message[1], message[2]
                             now = time.monotonic()
                             if job.pages_done == 0:
+                                job.pages_started_at = now
                                 log.info("job %s: %s page(s)", _short(job.id), job.pages_total)
                             else:
                                 log.info(
@@ -292,7 +324,7 @@ class JobStore:
                                     job.pages_total,
                                     _duration(now - last_page),
                                 )
-                            last_page = now
+                            last_page = job.last_page_at = now
                         else:
                             outcome = message
                 except (EOFError, OSError):

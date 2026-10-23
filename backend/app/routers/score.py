@@ -29,6 +29,7 @@ def _job_view(job: jobs.Job) -> ProcessScoreJob:
         pagesTotal=job.pages_total,
         queuePosition=jobs.store.queue_position(job.id) if job.status == "queued" else 0,
         stage=job.stage,
+        secondsLeft=jobs.seconds_left(job),
         cpuSeconds=round(job.cpu_seconds, 1) if job.cpu_seconds is not None else None,
         warning=_warning(job),
         error=job.error,

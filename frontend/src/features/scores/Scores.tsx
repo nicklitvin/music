@@ -7,7 +7,7 @@ import { Modal } from '../../components/Modal'
 import { VersionChip } from '../../components/VersionChip'
 import { deleteScore, listScores, reorderScores } from '../../lib/db'
 import { useDragReorder } from '../../lib/useDragReorder'
-import { SECONDS_PER_PAGE, useUploadQueue, type PendingUpload } from '../../lib/uploadQueue'
+import { useUploadQueue, type PendingUpload } from '../../lib/uploadQueue'
 import type { ScoreRecord } from '../../lib/types'
 
 const INFO_CONTENT = (
@@ -33,7 +33,7 @@ function formatDuration(seconds: number): string {
 
 // Two distinct phases, labelled so they can't be confused: sending the PDF
 // (seconds, with a real progress bar), then the server recognising it
-// (minutes per page). While processing, the stage comes from the worker
+// (minutes, with the server's own estimate of how many). While processing, the stage comes from the worker
 // itself, so "stuck" and "slow" look different -- and when the server says
 // its worker is starved, that's shown instead of a hopeful countdown.
 function statusLabel(upload: PendingUpload): string {
@@ -51,9 +51,9 @@ function statusLabel(upload: PendingUpload): string {
 
   const done = upload.pagesDone ?? 0
   const pages = `${done} of ${upload.pageCount} page${upload.pageCount === 1 ? '' : 's'} done`
-  const remaining = (upload.pageCount - done) * SECONDS_PER_PAGE
-  const eta = remaining <= 0 ? 'finishing up' : `up to ${formatDuration(remaining)} left`
-  return upload.stage ? `${pages} · ${upload.stage} · ${eta}` : `${pages} · ${eta}`
+  const left = upload.secondsLeft
+  const eta = left === undefined ? undefined : left <= 0 ? 'finishing up' : `up to ${formatDuration(left)} left`
+  return [pages, upload.stage, eta].filter(Boolean).join(' · ')
 }
 
 function useThumbnails(scores: ScoreRecord[]): Map<string, string> {
@@ -221,9 +221,9 @@ export function Scores() {
             device.
           </p>
           <p className="subtle-text">
-            Recognition takes about 3 minutes per page, so a 10-page sheet is roughly half an hour. You'll see an
-            estimate in your library while it works, and you can carry on using the app — or close it and come
-            back later.
+            Recognition takes about 3–4 minutes, however long the sheet: every page is read at the same time. You'll
+            see an estimate in your library while it works, and you can carry on using the app — or close it and
+            come back later.
           </p>
           <button className="btn btn-primary upload-sheet-btn" onClick={() => fileInputRef.current?.click()}>
             <FileUp size={18} /> Choose a PDF

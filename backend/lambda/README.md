@@ -6,10 +6,10 @@ server, that meant paying around the clock for an instance big enough for
 those few minutes. On Lambda, each page runs as its own invocation:
 
 - **Every page runs at once**, so a 10-page sheet takes about as long as
-  one page, instead of ten times as long.
-- **It is paid per second of use.** At 3.5 GB (2 vCPUs), a page costs
-  about 1 cent. Lambda's free tier is 400,000 GB-seconds a month, about
-  600 pages.
+  one page, instead of ten times as long: a 4-page sheet took 3m14s, each
+  page 187s.
+- **It is paid per second of use.** At 3 GB, a page costs about 1 cent.
+  Lambda's free tier is 400,000 GB-seconds a month, about 700 pages.
 - **The server only has to serve the site and the live tracking**, which
   a t3.small (2 GB, ~$15 a month) handles. A c7a.large is ~$75.
 
@@ -65,15 +65,17 @@ the same per-stage timings the server used to log.
 
 ## Tuning
 
-`OMR_LAMBDA_MEMORY_MB` (a GitHub variable, default 3538) sets the
+`OMR_LAMBDA_MEMORY_MB` (a GitHub variable, default 3008) sets the
 function's memory, and the CPU comes with it: 1 vCPU per 1,769 MB, up to
-6 at 10,240. oemer's nets make poor use of more than 2 threads (see "How
-long OMR takes" in the top-level README). More memory makes each page a
-little faster, but costs proportionally more per page.
+6 at 10,240. 3008 MB is the most a new AWS account allows until AWS raises
+it (Service Quotas), and a page peaks at about 2.5 GB, so it fits. oemer's
+nets make poor use of more than 2 threads (see "How long OMR takes" in the
+top-level README), so more memory makes each page a little faster but
+costs proportionally more per page.
 
-New AWS accounts are also capped at 3008 MB per function (about 1.7
-vCPUs) until AWS raises it, so this repo sets `OMR_LAMBDA_MEMORY_MB=3008`.
-A page peaks at about 2.3 GB, so it fits.
+The app's time-left estimate assumes a page takes up to 220s here
+(`LAMBDA_SECONDS_PER_PAGE` in `app/services/jobs.py`); change it along
+with the memory.
 
 New AWS accounts can run only 10 Lambdas at once. The setup script prints
 this account's limit. Pages beyond it wait their turn, and

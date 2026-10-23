@@ -1,6 +1,6 @@
 // Page count for an uploaded PDF, read in the browser before the upload
-// finishes. Only used to estimate how long OMR will take -- recognition is
-// ~3 minutes per page, so a 12-page sheet is over half an hour, and a spinner with no
+// finishes. Only used to show "0 of N pages done" before the server has
+// reported its own count -- recognition takes minutes, and a spinner with no
 // number attached is not an acceptable thing to show for that long.
 //
 // pdfjs is imported dynamically and every failure is swallowed: a missing
