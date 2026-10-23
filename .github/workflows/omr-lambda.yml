@@ -24,7 +24,9 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+  AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-2' }}
+  # Read from a variable or a secret -- it isn't secret, but both work.
+  DEPLOY_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN || secrets.AWS_DEPLOY_ROLE_ARN }}
   FUNCTION: ${{ vars.OMR_LAMBDA_FUNCTION || 'music-omr' }}
   # 3538 MB is the most memory that still gets 2 vCPUs; a page peaks at
   # ~2.3 GB. More memory buys more vCPUs, which oemer's nets use poorly
@@ -37,10 +39,8 @@ jobs:
     steps:
       - name: Check AWS is set up
         id: setup
-        env:
-          ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
         run: |
-          if [ -z "$ROLE" ]; then
+          if [ -z "$DEPLOY_ROLE" ]; then
             echo "::notice::AWS_DEPLOY_ROLE_ARN isn't set, so the OMR Lambda isn't deployed. See backend/lambda/README.md."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
@@ -53,7 +53,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         if: steps.setup.outputs.ready == 'true'
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ env.DEPLOY_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v2
