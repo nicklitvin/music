@@ -15,9 +15,13 @@ COPY app ${LAMBDA_TASK_ROOT}/app
 
 # Download oemer's weights and build their any-size copies now: the image
 # is read-only once deployed. The TensorFlow copies of the weights
-# (weights.h5, 110 MB) are never read on the onnxruntime path.
+# (weights.h5, 110 MB) are never read on the onnxruntime path. The any-size
+# copies are written via a temp file, which is owner-only; Lambda runs as an
+# unprivileged user, hence the chmod.
 RUN cd ${LAMBDA_TASK_ROOT} \
  && python -c "from app.services import oemer_engine; oemer_engine.prepare_models()" \
- && rm -f "$(python -c 'import oemer; print(oemer.MODULE_PATH)')"/checkpoints/*/weights.h5
+ && checkpoints="$(python -c 'import oemer; print(oemer.MODULE_PATH)')/checkpoints" \
+ && rm -f "$checkpoints"/*/weights.h5 \
+ && chmod -R a+rX "$checkpoints"
 
 CMD ["app.services.omr_remote.handler"]

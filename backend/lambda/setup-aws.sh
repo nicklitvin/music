@@ -92,12 +92,18 @@ if ! aws iam list-open-id-connect-providers --output text | grep -q "token.actio
     --client-id-list sts.amazonaws.com >/dev/null
   echo "created the GitHub OIDC provider"
 fi
+# Repos created since July 2026 identify themselves to AWS with their IDs
+# (repo:owner@123/name@456:...), older ones by name alone; ask GitHub which.
+SUB_PREFIX=$(curl -fsS "https://api.github.com/repos/$GITHUB_REPO/actions/oidc/customization/sub" \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin).get("sub_claim_prefix") or "")' || true)
+SUB_PREFIX=${SUB_PREFIX:-repo:$GITHUB_REPO}
+echo "GitHub identifies this repo as $SUB_PREFIX"
 cat >"$TMP/deploy-trust.json" <<EOF
 {"Version": "2012-10-17", "Statement": [{"Effect": "Allow",
   "Principal": {"Federated": "$OIDC_ARN"}, "Action": "sts:AssumeRoleWithWebIdentity",
   "Condition": {"StringEquals": {
     "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-    "token.actions.githubusercontent.com:sub": "repo:$GITHUB_REPO:ref:refs/heads/main"}}}]}
+    "token.actions.githubusercontent.com:sub": "$SUB_PREFIX:ref:refs/heads/main"}}}]}
 EOF
 ensure_role music-omr-deploy "$TMP/deploy-trust.json"
 cat >"$TMP/deploy-policy.json" <<EOF

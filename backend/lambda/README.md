@@ -71,6 +71,10 @@ function's memory, and the CPU comes with it: 1 vCPU per 1,769 MB, up to
 long OMR takes" in the top-level README). More memory makes each page a
 little faster, but costs proportionally more per page.
 
+New AWS accounts are also capped at 3008 MB per function (about 1.7
+vCPUs) until AWS raises it, so this repo sets `OMR_LAMBDA_MEMORY_MB=3008`.
+A page peaks at about 2.3 GB, so it fits.
+
 New AWS accounts can run only 10 Lambdas at once. The setup script prints
 this account's limit. Pages beyond it wait their turn, and
 `OMR_LAMBDA_CONCURRENCY` (default 10) caps how many one sheet sends at
