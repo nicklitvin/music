@@ -11,6 +11,14 @@ export interface PatchNote {
 // noticing.
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-10-27',
+    title: 'Click to say where you are',
+    changes: [
+      'Click or tap a line of the sheet to say where you are: it is highlighted, and tracking carries on from there as you play.',
+      'Scrolling no longer moves your place, so you can look ahead without losing it. The arrow keys and tap-the-edge controls are gone.',
+    ],
+  },
+  {
     date: '2026-10-23',
     title: 'Every page at once',
     changes: [
