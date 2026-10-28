@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import JSZip from 'jszip'
-import { ArrowLeft, Download, Mic, Square } from 'lucide-react'
+import { ArrowLeft, Mic, Square } from 'lucide-react'
 import { getScore } from '../../lib/db'
 import type { ScorePositionEvent, ScoreRecord } from '../../lib/types'
 import { useAudioTracking } from '../../audio/useAudioTracking'
@@ -26,10 +25,6 @@ const SCROLL_SETTLE_MS = 400
 // top of a line.
 const LOOKAHEAD_LINES = 2
 const LOOKBEHIND_LINES = 1
-// Clicking the first line this many times in a row reveals the hidden
-// Download action -- a deliberate, undiscoverable-by-accident gesture, not
-// a normal affordance.
-const DOWNLOAD_UNLOCK_TAPS = 7
 
 const INFO_CONTENT = (
   <>
@@ -53,17 +48,12 @@ const INFO_CONTENT = (
   </>
 )
 
-function slugify(title: string): string {
-  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'score'
-}
-
 export function ScoreViewer() {
   const { scoreId } = useParams<{ scoreId: string }>()
   const navigate = useNavigate()
   const [score, setScore] = useState<ScoreRecord | null>(null)
   const [pageUrls, setPageUrls] = useState<string[]>([])
   const [listening, setListening] = useState(false)
-  const [downloadUnlocked, setDownloadUnlocked] = useState(false)
   const [currentLine, setCurrentLine] = useState<ScoreLine | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -76,7 +66,6 @@ export function ScoreViewer() {
   // to the lines around where they are, not around whatever is on screen,
   // so scrolling away to look ahead never drags their place along.
   const pickedLineRef = useRef(false)
-  const firstLineTapsRef = useRef(0)
   // Set below, once the socket that sends it exists; the position handler
   // has to be created before that.
   const confineAroundRef = useRef<(index: number) => void>(() => {})
@@ -285,26 +274,9 @@ export function ScoreViewer() {
       const index = lineAt(y, lineBands())
       if (index === null) return
       pickLine(index)
-
-      firstLineTapsRef.current = index === 0 ? firstLineTapsRef.current + 1 : 0
-      if (firstLineTapsRef.current >= DOWNLOAD_UNLOCK_TAPS) setDownloadUnlocked(true)
     },
     [lineBands, lines.length, pickLine],
   )
-
-  const handleDownload = useCallback(async () => {
-    if (!score) return
-    const zip = new JSZip()
-    zip.file('notes.json', JSON.stringify(score.boundingBoxes, null, 2))
-    score.pages.forEach((page, index) => zip.file(`page-${index + 1}.png`, page.image))
-    const blob = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${slugify(score.title)}-sheet-data.zip`
-    link.click()
-    URL.revokeObjectURL(url)
-  }, [score])
 
   if (!score) return <p>Loading score…</p>
 
@@ -328,15 +300,6 @@ export function ScoreViewer() {
       danger: listening,
     },
   ]
-  if (downloadUnlocked) {
-    actions.push({
-      key: 'download',
-      label: 'Download',
-      icon: <Download size={20} />,
-      onClick: handleDownload,
-      emphasized: true,
-    })
-  }
 
   return (
     <div className="sheet-page">
