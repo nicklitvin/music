@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from functools import lru_cache
 
@@ -9,11 +10,12 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.models import NoteBoundingBox
-from app.services import pitch_detection, streaming_transcription
+from app.services import pitch_detection, session_log, streaming_transcription
 from app.services.position_markov import MarkovConfig, MarkovPositionTracker
 from app.services.score_timeline import build_timeline
 
 router = APIRouter()
+_log = logging.getLogger("uvicorn.error")
 
 # Tuning for the live page-turner use, as opposed to the offline benchmark
 # (which keeps MarkovConfig()'s defaults). The reader tells us where they
@@ -182,6 +184,10 @@ class _Session:
         self.tracker = tracker
         self.reported = ReportedPosition(index=start_index, acquired=acquired)
         self.confidence = 0.0
+        # For the session log: the tracker's own pick before rate limiting,
+        # and the learned model's evidence from the latest chunk.
+        self.belief = start_index
+        self.last_salience: list[np.ndarray] = []
         self.transcriber = (
             streaming_transcription.StreamingTranscriber(session=_model_session())
             if settings.use_learned_transcription
@@ -197,14 +203,21 @@ class _Session:
         is blocking work; call it off the event loop.
         """
         if self.transcriber is None:
+            self.last_salience = []
             self._apply(self.tracker.observe(frame))
             return
-        for salience in self.transcriber.push(frame / 32768.0):
+        self.last_salience = self.transcriber.push(frame / 32768.0)
+        for salience in self.last_salience:
             self._apply(self.tracker.observe(frame, salience=salience))
 
     def _apply(self, estimate) -> None:
         self.reported.update(estimate.index, estimate.confidence >= LIVE_CONFIG.jump_confidence_gate)
         self.confidence = estimate.confidence
+        self.belief = estimate.index
+
+    def expected_at(self, index: int) -> list[str]:
+        timeline = self.tracker.timeline
+        return timeline[index].pitches if 0 <= index < len(timeline) else []
 
 
 @router.websocket("/ws/track-audio")
@@ -245,6 +258,8 @@ async def track_audio(websocket: WebSocket) -> None:
     start_time = time.monotonic()
     detector = pitch_detection.PitchDetector()
     session: _Session | None = None
+    record = session_log.SessionLog()
+    record.event("open")
 
     try:
         while True:
@@ -254,7 +269,7 @@ async def track_audio(websocket: WebSocket) -> None:
 
             text = message.get("text")
             if text is not None:
-                session = _handle_control(text, session)
+                session = _handle_control(text, session, record)
                 continue
 
             chunk = message.get("bytes")
@@ -280,18 +295,50 @@ async def track_audio(websocket: WebSocket) -> None:
                 response["onsetIndex"] = session.reported.index
                 response["positionConfidence"] = round(session.confidence, 3)
 
+            _log_frame(record, response, session)
             await websocket.send_json(response)
     except WebSocketDisconnect:
         pass
+    finally:
+        frames = record.frames
+        path = await asyncio.to_thread(record.close)
+        if path is not None:
+            _log.info(
+                "tracking session: %s, %d frames, logged to %s",
+                f"{time.monotonic() - start_time:.0f}s",
+                frames,
+                path,
+            )
 
 
-def _handle_control(text: str, session: _Session | None) -> _Session | None:
+def _log_frame(record: session_log.SessionLog, response: dict, session: "_Session | None") -> None:
+    """One audio chunk in, and what was said back, for the session log."""
+    fields = {"rms": round(response["rms"], 1), "fft": response["notes"]}
+    if session is not None:
+        heard, struck = session_log.pitches_in(session.last_salience)
+        fields.update(
+            heard=heard,
+            struck=struck,
+            belief=session.belief,
+            onset=session.reported.index,
+            confidence=response["positionConfidence"],
+            expected=session.expected_at(session.reported.index),
+        )
+    record.event("frame", **fields)
+
+
+def _handle_control(
+    text: str, session: _Session | None, record: session_log.SessionLog | None = None
+) -> _Session | None:
     """Applies an INIT / HINT / VIEWPORT control frame, returning the
     (maybe new) session."""
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
         return session
+    if not isinstance(payload, dict):
+        return session
+    record = record or session_log.SessionLog(directory="")
 
     kind = payload.get("type")
     if kind == "INIT":
@@ -300,6 +347,13 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
         except (ValidationError, TypeError):
             return session
         timeline = build_timeline(notes, tempo_bpm=payload.get("tempoBpm", 99.0))
+        record.event(
+            "init",
+            notes=len(notes),
+            onsets=len(timeline),
+            tempo=payload.get("tempoBpm", 99.0),
+            start=payload.get("startOnsetIndex"),
+        )
         if not timeline:
             return None
         tracker = MarkovPositionTracker(timeline, LIVE_CONFIG)
@@ -324,6 +378,7 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
         if first is None:
             session.tracker.restrict_to(None)
             session.reported.restrict_to(None)
+            record.event("viewport", first=None, last=None)
         else:
             try:
                 low, high = int(first), int(last if last is not None else first)
@@ -331,6 +386,7 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
                 return session
             session.tracker.restrict_to(low, high)
             session.reported.restrict_to(low, high)
+            record.event("viewport", first=low, last=high)
         return session
 
     if kind == "HINT" and session is not None:
@@ -345,5 +401,6 @@ def _handle_control(text: str, session: _Session | None) -> _Session | None:
             width=1.2 if firm else 3.0,
         )
         session.reported.set(estimate.index)
+        record.event("hint", onset=index, firm=firm, moved_to=estimate.index, expected=session.expected_at(index))
 
     return session

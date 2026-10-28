@@ -37,6 +37,10 @@
   same holds when OMR runs on AWS Lambda (`omr_remote.py`, opt-in via
   `OMR_LAMBDA_FUNCTION`): the page travels in the invocation payload and
   the result in the response — never stage pages in S3 or anywhere else.
+  Live-tracking session logs (`session_log.py`, `~/music-logs/sessions`)
+  are on disk on purpose, kept indefinitely at the user's request — but
+  they hold only what was detected and reported, never the audio itself
+  and never page images.
 - **Client-side persistence**: all visual/audio assets (page images,
   MusicXML, bounding boxes, and the original uploaded PDF) live in the
   browser's IndexedDB via Dexie — never in a server-side database. Uploads

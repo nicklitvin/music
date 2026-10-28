@@ -155,3 +155,49 @@ def test_ws_accepts_a_position_hint(client):
     assert message["type"] == "POSITION"
     # The hint put the belief on the last C4 rather than the first.
     assert message["onsetIndex"] == 2
+
+
+def test_ws_logs_what_it_heard_and_what_it_said(client, monkeypatch, tmp_path):
+    import gzip
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "session_log_dir", str(tmp_path))
+    with client.websocket_connect("/ws/track-audio") as websocket:
+        websocket.send_text(json.dumps({"type": "INIT", "notes": SCORE_NOTES}))
+        websocket.send_text(json.dumps({"type": "VIEWPORT", "firstOnset": 0, "lastOnset": 2}))
+        websocket.send_text(json.dumps({"type": "HINT", "onsetIndex": 1, "firm": True}))
+        replies = []
+        for _ in range(20):
+            websocket.send_bytes(_harmonic_rich_pcm16(E5, 4096))
+            replies.append(websocket.receive_json())
+
+    (log_file,) = tmp_path.glob("*/*.jsonl.gz")
+    with gzip.open(log_file, "rt", encoding="utf-8") as handle:
+        events = [json.loads(line) for line in handle]
+
+    kinds = [e["event"] for e in events]
+    assert kinds[:4] == ["open", "init", "viewport", "hint"]
+    assert kinds[-1] == "close" and events[-1]["frames"] == 20
+    assert events[2]["first"] == 0 and events[2]["last"] == 2
+    assert events[3]["onset"] == 1 and events[3]["firm"] is True
+
+    frames = [e for e in events if e["event"] == "frame"]
+    assert len(frames) == 20
+    # Every reply the client got is in the log, alongside what was heard.
+    assert [f["onset"] for f in frames] == [r["onsetIndex"] for r in replies]
+    assert frames[-1]["fft"] == replies[-1]["notes"]
+    assert frames[-1]["expected"] == ["E5"]
+    assert any("E5" in f["heard"] for f in frames)
+
+
+def test_session_logging_can_be_turned_off(tmp_path):
+    from app.services import session_log
+
+    off = session_log.SessionLog(directory="")
+    off.event("frame", rms=1.0)
+    assert off.path is None and off.close() is None
+
+    on = session_log.SessionLog(directory=str(tmp_path / "logs"))
+    on.event("frame", rms=1.0)
+    assert on.close().name.endswith(".jsonl.gz")

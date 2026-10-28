@@ -45,5 +45,11 @@ class Settings(BaseSettings):
     omr_lambda_region: str = ""
     omr_lambda_concurrency: int = 10
 
+    # Where each live-tracking session's log goes (see session_log.py): what
+    # was heard and what position was sent back, one file per session, kept
+    # indefinitely. Outside the deploy checkout on purpose. Empty turns it
+    # off.
+    session_log_dir: str = "~/music-logs/sessions"
+
 
 settings = Settings()

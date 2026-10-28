@@ -169,6 +169,27 @@ ssh -i your-key.pem ec2-user@18.219.22.51 'grep -a " omr " ~/.pm2/logs/music-bac
 For reference, a page took ~3¼ minutes on the t3.medium (2 vCPUs, but
 both are hyperthreads of one core), against ~2 minutes on two real cores.
 
+## Why did tracking go wrong?
+
+Every live-tracking session is logged to its own file on the server
+(`backend/app/services/session_log.py` explains every field): one line per
+75 ms of audio with what was heard (`rms`, `fft`, the learned model's
+`heard`/`struck` pitches) next to what was sent back (`belief`, `onset`,
+`confidence`, and the score's `expected` pitches there), plus the reader's
+clicks (`hint`) and the window the model was held to (`viewport`). The
+audio itself is never stored.
+
+They live in `~/music-logs/sessions/<date>/`, gzipped once a session ends,
+and are kept until deleted by hand (about 1 MB an hour of playing; the
+disk is small, so check `df -h /` now and then). The PM2 log has a line
+per session saying where its file went.
+
+```bash
+ssh -i your-key.pem ec2-user@18.219.22.51 'ls -lt ~/music-logs/sessions/*/ | head'
+# A session, one frame a line:
+ssh -i your-key.pem ec2-user@18.219.22.51 'zcat ~/music-logs/sessions/2026-10-27/201500-ab12cd34.jsonl.gz' | head -50
+```
+
 ## HTTPS certificate renewal
 
 The site's Let's Encrypt certificate (scrollsheetmusic.com + www) renews

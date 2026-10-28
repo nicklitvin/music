@@ -4,7 +4,15 @@ import fitz
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def no_session_logs(monkeypatch):
+    """Tests drive plenty of tracking sessions; don't log them into the
+    real log folder. Tests of the log itself point it somewhere else."""
+    monkeypatch.setattr(settings, "session_log_dir", "")
 
 
 @pytest.fixture
