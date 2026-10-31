@@ -1,4 +1,5 @@
 import json
+import time
 import math
 import struct
 
@@ -172,6 +173,11 @@ def test_ws_logs_what_it_heard_and_what_it_said(client, monkeypatch, tmp_path):
             websocket.send_bytes(_harmonic_rich_pcm16(E5, 4096))
             replies.append(websocket.receive_json())
 
+    # The server closes and compresses the log in a thread once the socket
+    # has gone, so it can land a moment after the client is done.
+    deadline = time.monotonic() + 5
+    while not list(tmp_path.glob("*/*.jsonl.gz")) and time.monotonic() < deadline:
+        time.sleep(0.02)
     (log_file,) = tmp_path.glob("*/*.jsonl.gz")
     with gzip.open(log_file, "rt", encoding="utf-8") as handle:
         events = [json.loads(line) for line in handle]

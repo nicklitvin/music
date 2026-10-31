@@ -35,6 +35,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -80,6 +81,7 @@ class SessionLog:
         self.frames = 0
         self.path: Path | None = None
         self._file = None
+        self._closing = threading.Lock()
         directory = settings.session_log_dir if directory is None else directory
         if not directory:
             return
@@ -106,9 +108,14 @@ class SessionLog:
             self._file = None
 
     def close(self) -> Path | None:
-        """Close and compress; returns where the log ended up."""
+        """Close and compress; returns where the log ended up. Safe to call
+        twice, even at once from two threads."""
+        with self._closing:
+            return self._close()
+
+    def _close(self) -> Path | None:
         if self._file is None:
-            return None
+            return self.path if self.path is not None and self.path.suffix == ".gz" else None
         self.event("close", frames=self.frames)
         try:
             self._file.close()

@@ -12,10 +12,9 @@ export interface PatchNote {
 export const PATCH_NOTES: PatchNote[] = [
   {
     date: '2026-10-31',
-    title: 'Following that keeps up',
+    title: 'Hears quieter playing',
     changes: [
       'Fixed tracking that never left the first line on some phones: the browser was treating the piano as background noise and turning it down, so almost nothing reached the tracker. It now gets the microphone unprocessed, and quiet playing is heard in a quiet room.',
-      'The highlight no longer leaps a line ahead on a hunch and waits there for you. It moves on when it hears you get there.',
     ],
   },
   {

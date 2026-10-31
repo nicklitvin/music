@@ -83,31 +83,9 @@ def test_a_single_far_target_cannot_teleport_the_highlight():
     # One frame says "onset 200" -- far out of reach, so the page does not
     # move at all, let alone jump.
     assert reported.update(200) == 5
-    # A confident target within reach is only approached a step at a time.
-    assert reported.update(40, settled=True) == 7
+    # A target within reach is still only approached a step at a time.
+    assert reported.update(40) == 7
     assert reported.update(6) == 6  # and snaps back when the belief returns
-
-
-def test_an_unsure_leap_ahead_is_not_chased():
-    # The real-recording failure: one unsure guess a line ahead, chased at
-    # a step a frame, had the highlight there within a second -- and then
-    # too far ahead to come back when the belief did.
-    reported = ReportedPosition(index=290, step=2, confirm=25, acquired=True)
-    for _ in range(20):
-        reported.update(322)
-    assert reported.index == 290
-    assert reported.update(254) == 290  # the belief returns: nothing to undo
-
-
-def test_a_belief_gliding_ahead_is_caught_up_with():
-    # Unsure but consistent: the belief has found the reader and is moving
-    # on with them. After `confirm` frames of that the highlight goes to it.
-    reported = ReportedPosition(index=219, step=2, confirm=25, acquired=True)
-    target = 254
-    for _ in range(25):
-        reported.update(target)
-        target += 1
-    assert reported.index == target - 1
 
 
 def test_before_the_first_lock_the_report_follows_the_belief_outright():
@@ -121,7 +99,7 @@ def test_before_the_first_lock_the_report_follows_the_belief_outright():
     # then on a far-off single frame moves nothing.
     assert reported.update(802, settled=True) == 802
     assert reported.update(1500) == 802
-    assert reported.update(840, settled=True) == 804  # within reach: a step at a time
+    assert reported.update(840) == 804  # within reach: a step at a time
 
 
 def test_a_consistently_reported_jump_is_eventually_taken():
@@ -220,7 +198,7 @@ def test_a_manual_move_is_respected_even_before_the_tracker_settles():
 def test_backward_creep_is_capped():
     # A small backward correction is allowed, but only a few onsets a frame.
     reported = ReportedPosition(index=20, back=3, confirm=8, acquired=True)
-    assert reported.update(11, settled=True) == 17
+    assert reported.update(11) == 17
 
 
 # --- end to end on synthesized audio -----------------------------------
