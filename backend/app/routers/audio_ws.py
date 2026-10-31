@@ -64,6 +64,10 @@ MAX_MODEL_JUMP_AHEAD = 60
 # Backwards is tighter still: it is almost always a mis-match rather than a
 # genuine repeat, and a repeat the reader actually takes is a manual move.
 MAX_MODEL_JUMP_BACK = 12
+# How far a far-off target may move from one frame to the next and still
+# count as the same run towards `confirm`. Not zero: while the reader plays
+# on, a belief that has found them keeps moving with them.
+PENDING_DRIFT = 3
 
 
 class ReportedPosition:
@@ -147,18 +151,27 @@ class ReportedPosition:
             self._pending_run = 0
             return self.index
 
-        if self._pending is not None and abs(target - self._pending) <= 2:
+        # A run of far targets each close to the one before: the belief
+        # either sitting somewhere new, or gliding there as the reader plays.
+        if self._pending is not None and abs(target - self._pending) <= PENDING_DRIFT:
             self._pending_run += 1
         else:
-            self._pending = target
             self._pending_run = 1
+        self._pending = target
 
         if self._pending_run >= self._confirm:
             self.index = target
             self._pending = None
             self._pending_run = 0
-        else:
+        elif settled:
             self.index += self._step if delta > 0 else -self._back
+        # An unsure far target is not chased, only counted towards
+        # `confirm`. Chasing at `step` a frame is ~27 onsets a second, many
+        # times playing speed: on a real recording one 0.56-confidence guess
+        # 30 onsets ahead put the highlight on the next line within a
+        # second, and when the belief came back the gap was past
+        # MAX_MODEL_JUMP_BACK, so it sat there for 8 seconds while the
+        # reader played the line before.
         return self.index
 
     def set(self, index: int, hold: bool = True) -> None:

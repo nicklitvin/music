@@ -48,14 +48,32 @@ MODEL_PATH = Path(__file__).resolve().parent.parent / "assets" / "basic_pitch" /
 # Swept against the benchmark -- 1.0 and 3.0 are both measurably worse.
 SHARPEN = 2.0
 
-# Below this RMS (on audio scaled to [-1, 1]) a frame is silence and must
-# produce *no* evidence at all. This gate is not optional: the model emits a
-# flat ~0.1 activation floor on digital silence and spurious onset spikes on
-# room noise, and unit-norming either turns that nothing into a
-# confident-looking observation -- which reads as the sheet scrolling
-# wildly while nobody is playing. Matches note_estimation's old
-# SILENCE_RMS_THRESHOLD of 500 on the int16 scale.
+# Below the silence cutoff (RMS, on audio scaled to [-1, 1]) a frame is
+# silence and must produce *no* evidence at all. This gate is not optional:
+# the model emits a flat ~0.1 activation floor on digital silence and turns
+# room noise -- hiss, hum, even at an RMS of 60 -- into notes in nearly every
+# frame, and unit-norming either makes that nothing look like a confident
+# observation, which reads as the sheet scrolling wildly while nobody is
+# playing.
+#
+# The cutoff follows the room rather than being fixed, because microphones
+# differ by more than any fixed number allows: the same piano through the
+# same iPhone measured a median RMS of ~3400 in Voice Memos and ~165 in the
+# browser, so a fixed 500 (note_estimation's SILENCE_RMS_THRESHOLD) threw
+# away almost all of a real session. It sits NOISE_FLOOR_MULTIPLE times
+# above the room's own noise, within these bounds -- never stricter than
+# the old fixed 500:
 SILENCE_RMS = 500 / 32768
+QUIETEST_CUTOFF_RMS = 30 / 32768
+NOISE_FLOOR_MULTIPLE = 4.0
+# The room's noise is the quietest hop heard so far, which the floor drops
+# to at once and only creeps back up from at this rate. The room shows
+# itself before the reader starts and whenever they pause; in between, soft
+# playing is only ~7 dB under loud on a phone, so a floor measured over a
+# stretch of continuous playing is soft playing, and gated the music out
+# (tried as a rolling 30 s percentile). Rising slowly lets it follow a room
+# that gets noisier without ever reaching up into the playing.
+NOISE_FLOOR_RISE_PER_SECOND = 2 ** (1 / 60)  # at most doubling a minute
 
 # Raw (pre-normalisation) activation below which there is nothing to see
 # either, as a backstop for audio loud enough to pass the RMS gate but
@@ -191,6 +209,24 @@ class StreamingTranscriber:
         self._buffer = np.zeros(self._lead_in, dtype=np.float32)
         self._emitted_hops = 0
         self._consumed_before_buffer = 0
+        self._noise_floor: float | None = None
+        self._floor_rise = NOISE_FLOOR_RISE_PER_SECOND ** (hop_samples / input_rate)
+
+    @property
+    def silence_rms(self) -> float:
+        """The current silence cutoff: see NOISE_FLOOR_MULTIPLE."""
+        if self._noise_floor is None:
+            return SILENCE_RMS
+        return min(SILENCE_RMS, max(QUIETEST_CUTOFF_RMS, NOISE_FLOOR_MULTIPLE * self._noise_floor))
+
+    def _hear_level(self, level: float) -> None:
+        if self._noise_floor is None:
+            self._noise_floor = level
+        else:
+            # Never let it stick at zero (a muted or digitally silent mic),
+            # where rising by a factor would leave it there for good.
+            risen = max(self._noise_floor, 1 / 32768) * self._floor_rise
+            self._noise_floor = min(level, risen)
 
     @property
     def _window_input_samples(self) -> int:
@@ -253,7 +289,7 @@ class StreamingTranscriber:
 
         The model will happily hallucinate notes out of room tone; the one
         thing that reliably says "nobody is playing" is that there is no
-        sound.
+        sound -- more than the room makes by itself.
         """
         lo = hop_start - self._consumed_before_buffer
         hi = hop_end - self._consumed_before_buffer
@@ -262,7 +298,11 @@ class StreamingTranscriber:
         samples = self._buffer[lo:hi]
         if not len(samples):
             return False
-        return float(np.sqrt(np.mean(samples**2))) < SILENCE_RMS
+        level = float(np.sqrt(np.mean(samples**2)))
+        # The zeros padded onto the head of the stream are not the room.
+        if hop_start >= self._lead_in:
+            self._hear_level(level)
+        return level < self.silence_rms
 
     def _model_frame(self, offset_input_samples: int) -> int:
         seconds = offset_input_samples / self.input_rate

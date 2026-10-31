@@ -184,6 +184,13 @@ and are kept until deleted by hand (about 1 MB an hour of playing; the
 disk is small, so check `df -h /` now and then). The PM2 log has a line
 per session saying where its file went.
 
+The first thing to look at is `rms` against `heard`. A session that never
+left the first line (2026-10-28) had the piano at a median `rms` of ~165,
+with `heard` empty in 95% of frames. The browser's call-style processing
+had turned it down and the old fixed silence cutoff of 500 threw the rest
+away. Both are fixed: the mic is now requested unprocessed, and the cutoff
+follows the room (`streaming_transcription.py`).
+
 ```bash
 ssh -i your-key.pem ec2-user@18.219.22.51 'ls -lt ~/music-logs/sessions/*/ | head'
 # A session, one frame a line:

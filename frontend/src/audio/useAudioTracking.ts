@@ -55,7 +55,15 @@ export function useAudioTracking({
         )
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Browsers tune the microphone for calls by default: echo
+      // cancellation, noise suppression and auto gain all treat a held note
+      // as noise to remove. On an iPhone that left the playing about 20x
+      // quieter than the same phone's Voice Memos recording, under the
+      // server's silence cutoff, and the sheet never moved. Ask for the raw
+      // signal instead.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      })
       streamRef.current = stream
 
       const socket = new WebSocket(resolveWsUrl(wsPath))
